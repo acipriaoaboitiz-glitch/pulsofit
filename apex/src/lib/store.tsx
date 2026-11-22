@@ -19,13 +19,16 @@ import type {
   WorkoutSession,
 } from './types'
 import { computeTargets, waterGoal } from './metabolic'
-import { registerCustomExercises } from './exercises'
+import { registerCustomExercises, weekRoutines } from './exercises'
 import { addDays, todayKey, uid } from './utils'
-import { stepsKcal, stepsToKm } from './calc'
+import { DEFAULT_WEIGHT_KG, stepsKcal, stepsToKm } from './calc'
+import { workoutKcal } from './workout'
 
 const KEY = 'apex.state.v1'
 export const AI_PHOTO_LIMIT = 3
 export const AI_TEXT_LIMIT = 20
+
+const WEEK_SEEDED_KEY = 'apex.weekSeeded'
 
 const COLLECTIONS: Collection[] = ['food', 'water', 'steps', 'cardio', 'weights', 'saved', 'routines', 'sessions', 'custom']
 
@@ -39,7 +42,7 @@ const initial = (): AppState => ({
   weights: [],
   saved: [],
   custom: [],
-  routines: [],
+  routines: weekRoutines(),
   sessions: [],
   ai: { day: todayKey(), photo: 0, text: 0 },
   active: null,
@@ -50,7 +53,14 @@ const initial = (): AppState => ({
 function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return initial()
+    if (!raw) {
+      try {
+        localStorage.setItem(WEEK_SEEDED_KEY, '1')
+      } catch {
+        /* no storage */
+      }
+      return initial()
+    }
     const parsed = JSON.parse(raw) as AppState
     if (parsed.v !== 1) return initial()
     const merged = { ...initial(), ...parsed }
@@ -59,6 +69,15 @@ function load(): AppState {
     if (seeded.length) {
       merged.routines = merged.routines.filter((x) => !x.id.startsWith('tpl-'))
       merged.tomb = [...merged.tomb, ...seeded.map((x) => ({ c: 'routines' as const, id: x.id }))]
+    }
+    // Your weekly plan (Mon–Fri) is added once; deleting it afterwards is respected.
+    try {
+      if (!localStorage.getItem(WEEK_SEEDED_KEY) && !merged.routines.some((x) => x.id.startsWith('week-'))) {
+        merged.routines = [...weekRoutines(), ...merged.routines]
+        localStorage.setItem(WEEK_SEEDED_KEY, '1')
+      }
+    } catch {
+      /* no storage */
     }
     return merged
   } catch {
@@ -213,7 +232,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cardios = state.cardio.filter((c) => c.date === date)
       const cardioKcal = cardios.reduce((a, c) => a + c.kcal, 0)
       const sessions = state.sessions.filter((x) => x.date === date)
-      const gymKcal = sessions.reduce((a, x) => a + x.kcal, 0)
+      const activeKcal = date === todayKey() && state.active ? workoutKcal(state.active.exercises, p?.weightKg ?? DEFAULT_WEIGHT_KG) : 0
+      const gymKcal = sessions.reduce((a, x) => a + x.kcal, 0) + activeKcal
       const gymVolume = sessions.reduce((a, x) => a + x.volume, 0)
       const sk = p ? stepsKcal(steps, p.weightKg) : 0
       return {
@@ -232,7 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         trained: cardios.length > 0 || sessions.length > 0,
       }
     },
-    [state.food, state.water, state.steps, state.cardio, state.sessions, state.profile],
+    [state.food, state.water, state.steps, state.cardio, state.sessions, state.profile, state.active],
   )
 
   const waterTarget = useCallback(

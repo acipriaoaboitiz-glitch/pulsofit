@@ -82,3 +82,27 @@ export const CARDIO: CardioDef[] = [
 ]
 export const cardioById = (id: CardioKind): CardioDef => CARDIO.find((c) => c.id === id) ?? CARDIO[0]
 export const cardioKcal = (kind: CardioKind, weightKg: number, minutes: number): number => metKcal(cardioById(kind).met, weightKg, minutes)
+
+// ---------------------------------------------------------------- kcal per exercise (sum of its completed sets)
+export const DEFAULT_WEIGHT_KG = 89
+
+/** seconds under tension per rep and rest share counted as active time for every set */
+const SEC_PER_REP = 3
+const REST_SHARE_SEC = 45
+
+/**
+ * Approximate kcal of ONE completed set:
+ *  - MET part: 0,0175 × MET × kg corporal × minutos (reps × 3 s + 45 s de descanso)
+ *  - Work part: volumen (kg × reps) × 9,81 m/s² × 0,45 m de recorrido ÷ 4184 ÷ 25 % de rendimiento
+ */
+export function setKcal(met: number, bodyKg: number, kg: number, reps: number): number {
+  const minutes = (reps * SEC_PER_REP + REST_SHARE_SEC) / 60
+  const metPart = 0.0175 * met * bodyKg * minutes
+  const workPart = (kg * reps * 9.81 * 0.45) / 4184 / 0.25
+  return metPart + workPart
+}
+
+/** Total kcal of the completed sets of one exercise (rounded). */
+export function exerciseSetsKcal(met: number, bodyKg: number, sets: { kg: number; reps: number; done: boolean }[]): number {
+  return Math.round(sets.filter((s) => s.done).reduce((a, s) => a + setKcal(met, bodyKg, s.kg, s.reps), 0))
+}

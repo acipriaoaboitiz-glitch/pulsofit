@@ -1,4 +1,4 @@
-import type { CustomExercise, Muscle } from './types'
+import type { CustomExercise, Muscle, Routine } from './types'
 
 export type { Muscle }
 
@@ -45,7 +45,8 @@ export const EXERCISES: Exercise[] = [
   E('incline-db', 'Press inclinado con mancuernas', 'Pecho', 'Mancuernas', ['Hombros']),
   E('chest-fly', 'Aperturas con mancuernas', 'Pecho', 'Mancuernas'),
   E('cable-fly', 'Cruce de poleas', 'Pecho', 'Polea'),
-  E('pec-deck', 'Pec deck (máquina)', 'Pecho', 'Máquina'),
+  E('pec-deck', 'Pec Deck (Aperturas en máquina)', 'Pecho', 'Máquina'),
+  E('incline-multipower', 'Press inclinado en Multipower', 'Pecho', 'Multipower', ['Hombros', 'Tríceps']),
   E('chest-press-machine', 'Press de pecho en máquina', 'Pecho', 'Máquina', ['Tríceps']),
   E('pushup', 'Flexiones', 'Pecho', 'Peso corporal', ['Tríceps']),
   E('dips-chest', 'Fondos en paralelas (pecho)', 'Pecho', 'Peso corporal', ['Tríceps']),
@@ -57,15 +58,18 @@ export const EXERCISES: Exercise[] = [
   E('barbell-row', 'Remo con barra', 'Espalda', 'Barra', ['Bíceps']),
   E('db-row', 'Remo con mancuerna', 'Espalda', 'Mancuernas', ['Bíceps']),
   E('seated-row', 'Remo sentado en polea', 'Espalda', 'Polea', ['Bíceps']),
+  E('row-unilateral', 'Remo unilateral (Dorsal)', 'Espalda', 'Polea', ['Bíceps']),
+  E('row-open', 'Remo abierto (Espalda alta)', 'Espalda', 'Máquina', ['Bíceps', 'Hombros']),
   E('tbar-row', 'Remo en T', 'Espalda', 'Barra', ['Bíceps']),
   E('straight-arm', 'Pullover en polea', 'Espalda', 'Polea'),
   E('face-pull', 'Face pull', 'Espalda', 'Polea', ['Hombros']),
   E('hyperext', 'Hiperextensiones', 'Espalda', 'Banco', ['Glúteos']),
   // Hombros
-  E('ohp', 'Press militar con barra', 'Hombros', 'Barra', ['Tríceps']),
+  E('ohp', 'Press militar', 'Hombros', 'Barra', ['Tríceps']),
   E('db-shoulder', 'Press de hombro con mancuernas', 'Hombros', 'Mancuernas', ['Tríceps']),
   E('arnold', 'Press Arnold', 'Hombros', 'Mancuernas', ['Tríceps']),
-  E('lateral-raise', 'Elevaciones laterales', 'Hombros', 'Mancuernas'),
+  E('lateral-raise', 'Elevaciones laterales (Hombro lateral)', 'Hombros', 'Mancuernas'),
+  E('rear-delt-cable', 'Hombro posterior en polea (Pájaros)', 'Hombros', 'Polea'),
   E('cable-lateral', 'Elevaciones laterales en polea', 'Hombros', 'Polea'),
   E('front-raise', 'Elevaciones frontales', 'Hombros', 'Mancuernas'),
   E('rear-delt-fly', 'Pájaros (deltoide posterior)', 'Hombros', 'Mancuernas'),
@@ -76,6 +80,9 @@ export const EXERCISES: Exercise[] = [
   E('db-curl', 'Curl con mancuernas', 'Bíceps', 'Mancuernas'),
   E('hammer-curl', 'Curl martillo', 'Bíceps', 'Mancuernas'),
   E('preacher-curl', 'Curl predicador', 'Bíceps', 'Barra Z'),
+  E('db-preacher', 'Curl predicador con mancuernas', 'Bíceps', 'Mancuernas'),
+  E('cable-curl-uni', 'Curl de bíceps en polea unilateral', 'Bíceps', 'Polea'),
+  E('cable-curl-low', 'Curl de bíceps en polea baja (Barra recta / V)', 'Bíceps', 'Polea'),
   E('incline-curl', 'Curl inclinado', 'Bíceps', 'Mancuernas'),
   E('cable-curl', 'Curl en polea', 'Bíceps', 'Polea'),
   E('conc-curl', 'Curl concentrado', 'Bíceps', 'Mancuernas'),
@@ -83,6 +90,7 @@ export const EXERCISES: Exercise[] = [
   E('cg-bench', 'Press banca agarre cerrado', 'Tríceps', 'Barra', ['Pecho']),
   E('skullcrusher', 'Press francés', 'Tríceps', 'Barra Z'),
   E('pushdown', 'Extensión de tríceps en polea', 'Tríceps', 'Polea'),
+  E('overhead-cable-ext', 'Extensión de tríceps trasnuca en polea', 'Tríceps', 'Polea'),
   E('rope-pushdown', 'Extensión con cuerda', 'Tríceps', 'Polea'),
   E('overhead-ext', 'Extensión sobre la cabeza', 'Tríceps', 'Mancuernas'),
   E('dips-tri', 'Fondos en banco', 'Tríceps', 'Peso corporal'),
@@ -135,3 +143,81 @@ export const exerciseById = (id: string): Exercise | undefined => EXERCISES.find
 
 /** Only Olympic-bar lifts get the plate calculator (EZ bars excluded). */
 export const isBarbell = (id: string): boolean => exerciseById(id)?.equipment === 'Barra'
+
+// ---------------------------------------------------------------- MET per exercise (kcal estimates)
+/** Multi-joint lifts → MET 6.0. Everything else is treated as isolation → MET 4.0. */
+const COMPOUND = new Set([
+  'bench-press', 'incline-bench', 'db-bench', 'incline-db', 'incline-multipower', 'dips-chest', 'cg-bench', 'chest-press-machine',
+  'deadlift', 'pullup', 'chinup', 'lat-pulldown', 'barbell-row', 'db-row', 'seated-row', 'tbar-row', 'row-unilateral', 'row-open',
+  'ohp', 'db-shoulder', 'arnold',
+  'squat', 'front-squat', 'leg-press', 'hack-squat', 'bulgarian', 'lunge', 'goblet', 'stepup', 'rdl', 'db-rdl', 'sumo-deadlift', 'hip-thrust', 'good-morning',
+])
+export const MET_COMPOUND = 6.0
+export const MET_ISOLATION = 4.0
+export const exerciseMet = (id: string): number => (COMPOUND.has(id) ? MET_COMPOUND : MET_ISOLATION)
+
+// ---------------------------------------------------------------- my weekly plan (Monday → Friday)
+export interface PlanExercise {
+  id: string
+  sets: number
+  bonus?: boolean
+}
+export interface PlanDay {
+  /** 1 = Monday … 5 = Friday */
+  day: number
+  name: string
+  focus: string
+  exercises: PlanExercise[]
+}
+
+const P = (id: string, sets = 3, bonus = false): PlanExercise => ({ id, sets, bonus: bonus || undefined })
+
+export const WEEK_PLAN: PlanDay[] = [
+  {
+    day: 1,
+    name: 'Lunes',
+    focus: 'Pecho, hombro y tríceps',
+    exercises: [P('incline-multipower'), P('pec-deck'), P('ohp'), P('lateral-raise'), P('rear-delt-cable'), P('pushdown'), P('overhead-cable-ext')],
+  },
+  {
+    day: 2,
+    name: 'Martes',
+    focus: 'Espalda y bíceps',
+    exercises: [P('lat-pulldown'), P('row-unilateral'), P('row-open'), P('db-preacher'), P('cable-curl-uni'), P('hammer-curl'), P('cable-curl-low', 2, true)],
+  },
+  { day: 3, name: 'Miércoles', focus: 'Pierna', exercises: [] },
+  {
+    day: 4,
+    name: 'Jueves',
+    focus: 'Pecho y espalda',
+    exercises: [P('incline-multipower'), P('pec-deck'), P('lat-pulldown'), P('row-unilateral'), P('row-open')],
+  },
+  {
+    day: 5,
+    name: 'Viernes',
+    focus: 'Brazo entero (hombro, tríceps y bíceps)',
+    exercises: [P('ohp'), P('lateral-raise'), P('rear-delt-cable'), P('pushdown'), P('overhead-cable-ext'), P('db-preacher'), P('cable-curl-uni'), P('hammer-curl'), P('cable-curl-low', 2, true)],
+  },
+]
+
+export const WEEK_PROGRAM = 'Mi semana'
+export const WEEK_REPS = 12
+export const isWeekRoutine = (r: { id: string }): boolean => r.id.startsWith('week-')
+
+/** Weekday routines, ready to be saved (editable and deletable like any other). */
+export function weekRoutines(): Routine[] {
+  const now = Date.now()
+  return WEEK_PLAN.map((d) => ({
+    id: `week-${d.day}`,
+    u: now,
+    name: d.name,
+    program: WEEK_PROGRAM,
+    exercises: d.exercises.map((e) => ({ exerciseId: e.id, sets: e.sets, reps: WEEK_REPS, restSec: 90, bonus: e.bonus })),
+  }))
+}
+
+/** 1..5 for Mon–Fri; weekends point to Monday (the next training day). */
+export function todayPlanDay(d: Date = new Date()): number {
+  const w = d.getDay() // 0 = Sunday
+  return w >= 1 && w <= 5 ? w : 1
+}

@@ -8,10 +8,10 @@ import { ExercisePicker } from './ExercisePicker'
 import { PlateSheet } from './PlateSheet'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
-import { GROUPS, GROUP_COLOR, exerciseById, groupOf, isBarbell } from '../lib/exercises'
+import { GROUPS, GROUP_COLOR, exerciseById, exerciseMet, groupOf, isBarbell } from '../lib/exercises'
 import type { Group } from '../lib/exercises'
-import { bestE1rm, isPr, lastSetsFor, newExercise, sessionVolume } from '../lib/workout'
-import { GYM_MET, INTENSITY_LABELS, epley, gymKcal, suggestIntensity } from '../lib/calc'
+import { bestE1rm, isPr, lastSetsFor, newExercise, sessionVolume, workoutKcal } from '../lib/workout'
+import { DEFAULT_WEIGHT_KG, epley, exerciseSetsKcal, suggestIntensity } from '../lib/calc'
 import type { ActiveWorkout as Active, Intensity, SetLog } from '../lib/types'
 import { beep, cn, fmt, fmtClock, fmtHms, haptic, primeAudio, todayKey, uid } from '../lib/utils'
 
@@ -240,8 +240,8 @@ export function ActiveWorkout() {
   const doneSets = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
   const totalSets = active.exercises.reduce((n, e) => n + e.sets.length, 0)
   const volume = sessionVolume(active.exercises)
-  const weight = state.profile?.weightKg ?? 75
-  const liveKcal = gymKcal(suggestIntensity(volume, elapsed / 60), weight, elapsed)
+  const weight = state.profile?.weightKg ?? DEFAULT_WEIGHT_KG
+  const liveKcal = workoutKcal(active.exercises, weight)
 
   const plateEx = plates ? active.exercises[plates.ei] : undefined
   const plateSet = plates && plateEx ? plateEx.sets[plates.si] : undefined
@@ -337,6 +337,7 @@ export function ActiveWorkout() {
                       <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
                       {grp ?? 'Otro'}
                     </span>
+                    {ex.bonus && <span className="rounded-md border border-fire/30 bg-fire/10 px-1.5 py-0.5 text-[9px] font-extrabold tracking-[0.12em] text-fire">BONUS</span>}
                     {top ? (
                       <span className="num rounded-full bg-white/[0.06] px-2 py-0.5 text-[10.5px] text-white/65">
                         Última vez: <b className="text-white">{top.kg > 0 ? `${top.kg}kg` : 'PC'} × {top.reps}</b>
@@ -346,6 +347,10 @@ export function ActiveWorkout() {
                     )}
                   </div>
                   <h3 className="truncate text-[16px] font-extrabold leading-tight">{def?.name ?? ex.exerciseId}</h3>
+                  <span className="num mt-1.5 inline-flex items-center gap-1 rounded-full border border-fire/25 bg-fire/10 px-2.5 py-1 text-[11.5px] font-bold text-fire">
+                    <Flame size={11} />~{exerciseSetsKcal(exerciseMet(ex.exerciseId), weight, ex.sets)} kcal · {ex.sets.filter((x) => x.done).length} {ex.sets.filter((x) => x.done).length === 1 ? 'serie' : 'series'}
+                    <span className="font-semibold text-fire/60">MET {exerciseMet(ex.exerciseId).toFixed(1)}</span>
+                  </span>
                   <p className="num text-[11.5px] text-white/40">
                     {def?.equipment}
                     {best ? <span className="ml-1.5 text-violet-300">· mejor 1RM {Math.round(best)} kg</span> : null}
@@ -375,15 +380,36 @@ export function ActiveWorkout() {
                 ))}
               </div>
 
-              <button className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/50 active:bg-white/[0.05]" onClick={() => addSet(ei)}>
-                <Plus size={15} strokeWidth={3} /> Añadir serie
-              </button>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/55 active:bg-white/[0.05]" onClick={() => addSet(ei)}>
+                  <Plus size={15} strokeWidth={3} /> Añadir serie
+                </button>
+                <button
+                  disabled={ex.sets.length <= 1}
+                  className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/55 active:bg-white/[0.05] disabled:opacity-25"
+                  onClick={() => {
+                    haptic(8)
+                    update((a) => ({ ...a, exercises: a.exercises.map((e, i) => (i !== ei ? e : { ...e, sets: e.sets.slice(0, -1) })) }))
+                  }}
+                >
+                  <Minus size={15} strokeWidth={3} /> Quitar serie
+                </button>
+              </div>
             </section>
           )
         })}
 
         <section className="card p-4 lg:col-span-2">
-          <p className="label mb-2.5">Añadir ejercicio por músculo</p>
+          <button
+            className="btn-violet mb-3 w-full !py-3.5 text-[15px]"
+            onClick={() => {
+              setPickerGroup(undefined)
+              setPicker(true)
+            }}
+          >
+            <Plus size={18} strokeWidth={3} /> Añadir ejercicio extra
+          </button>
+          <p className="label mb-2.5">o por músculo</p>
           <div className="flex flex-wrap gap-2">
             {GROUPS.map((g) => (
               <button
@@ -486,7 +512,7 @@ export function ActiveWorkout() {
             .map((e) => ({ exerciseId: e.exerciseId, restSec: e.restSec, sets: e.sets.filter((s) => s.done) }))
             .filter((e) => e.sets.length > 0)
           const durationSec = Math.max(60, Math.round(elapsed))
-          const kcal = gymKcal(intensity, weight, durationSec)
+          const kcal = workoutKcal(done, weight)
           const prs = done.flatMap((e) => e.sets.filter((s) => s.pr).map((s) => ({ exercise: exerciseById(e.exerciseId)?.name ?? e.exerciseId, e1rm: Math.round(epley(s.kg, s.reps)) })))
           const vol = sessionVolume(done)
           addSession({ date: todayKey(), routineName: active.routineName, startedAt: active.startedAt, durationSec, intensity, kcal, volume: vol, prCount: prs.length, exercises: done })
@@ -530,13 +556,12 @@ export function ActiveWorkout() {
 function FinishSheet({ open, onClose, active, durationSec, onConfirm }: { open: boolean; onClose: () => void; active: Active; durationSec: number; onConfirm: (i: Intensity, routineName: string) => void }) {
   const { state } = useStore()
   const [routineName, setRoutineName] = useState('')
-  const weight = state.profile?.weightKg ?? 75
+  const weight = state.profile?.weightKg ?? DEFAULT_WEIGHT_KG
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
   const dur = Math.max(60, Math.round(durationSec))
   const vol = sessionVolume(active.exercises)
-  const suggested = suggestIntensity(vol, dur / 60)
-  const [choice, setChoice] = useState<Intensity | null>(null)
-  const intensity = choice ?? suggested
+  const intensity = suggestIntensity(vol, dur / 60)
+  const total = workoutKcal(active.exercises, weight)
 
   return (
     <Sheet open={open} onClose={onClose} title="Terminar entreno" z={80}>
@@ -549,34 +574,32 @@ function FinishSheet({ open, onClose, active, durationSec, onConfirm }: { open: 
         </>
       ) : (
         <div className="space-y-5">
-          <div>
-            <p className="label mb-2">Intensidad (sugerida por tu volumen y ritmo)</p>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.keys(INTENSITY_LABELS) as Intensity[]).map((k) => (
-                <button key={k} onClick={() => setChoice(k)} className={cn('rounded-2xl border py-3 text-center transition active:scale-95', intensity === k ? 'border-neon/60 bg-neon/15 text-white' : 'border-line bg-white/[0.03] text-white/55')}>
-                  <div className="text-[14px] font-bold">
-                    {INTENSITY_LABELS[k]}
-                    {k === suggested && <span className="ml-1 text-[10px] text-neon">●</span>}
-                  </div>
-                  <div className="num text-[11px] text-white/40">MET {GYM_MET[k]}</div>
-                </button>
-              ))}
-            </div>
-          </div>
           <div className="rounded-2xl border border-fire/25 bg-fire/[0.07] p-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="label !text-fire/80">Calorías quemadas</div>
-                <div className="num text-[11px] text-white/40">
-                  0,0175 × {GYM_MET[intensity]} MET × {weight} kg × {(dur / 60).toFixed(0)} min
+                <div className="label !text-fire/80">Calorías quemadas (aprox.)</div>
+                <div className="num mt-1 text-[11px] text-white/40">
+                  {weight} kg · {fmt(vol)} kg levantados · {Math.round(dur / 60)} min
                 </div>
-                <div className="num text-[11px] text-white/40">{fmt(vol)} kg de volumen</div>
               </div>
               <div className="num flex items-center gap-1 text-[34px] font-bold text-fire">
                 <Flame size={22} />
-                {fmt(gymKcal(intensity, weight, dur))}
+                {fmt(total)}
               </div>
             </div>
+            <ul className="mt-3 space-y-1.5 border-t border-fire/15 pt-3">
+              {active.exercises
+                .filter((e) => e.sets.some((s) => s.done))
+                .map((e, i) => (
+                  <li key={i} className="flex items-center justify-between gap-3 text-[12.5px]">
+                    <span className="min-w-0 truncate text-white/70">{exerciseById(e.exerciseId)?.name ?? e.exerciseId}</span>
+                    <span className="num shrink-0 text-white/45">
+                      {e.sets.filter((s) => s.done).length} series · <b className="text-fire">~{exerciseSetsKcal(exerciseMet(e.exerciseId), weight, e.sets)} kcal</b>
+                    </span>
+                  </li>
+                ))}
+            </ul>
+            <p className="num mt-2 text-[10.5px] text-white/30">0,0175 × MET (6,0 multiarticular · 4,0 aislamiento) × kg × tiempo + trabajo mecánico</p>
           </div>
           <label className="block">
             <span className="label">Guardar como rutina (opcional)</span>

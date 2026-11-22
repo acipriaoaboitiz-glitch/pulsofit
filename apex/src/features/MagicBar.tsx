@@ -8,8 +8,8 @@ import { parseMagic } from '../lib/parser'
 import type { ExerciseItem, MagicItem } from '../lib/parser'
 import { FOODS_DB } from '../lib/foodsDb'
 import { allExercises, MUSCLES } from '../lib/exercises'
-import { bestE1rm, isPr, sessionVolume } from '../lib/workout'
-import { cardioKcal, gymKcal, suggestIntensity, CARDIO, epley } from '../lib/calc'
+import { bestE1rm, isPr, workoutKcal } from '../lib/workout'
+import { cardioKcal, CARDIO, DEFAULT_WEIGHT_KG, epley, suggestIntensity } from '../lib/calc'
 import type { Meal, Muscle, SessionExercise, SetLog } from '../lib/types'
 import { cn, defaultMeal, fmt, haptic, todayKey } from '../lib/utils'
 
@@ -52,7 +52,7 @@ function describe(it: MagicItem): { icon: typeof Utensils; title: string; sub: s
   }
 }
 
-export function MagicBar({ className, suggestions }: { className?: string; suggestions?: string[] }) {
+export function MagicBar({ className, suggestions, autoFocus }: { className?: string; suggestions?: string[]; autoFocus?: boolean }) {
   const { state, addFood, addWater, addSteps, addCardio, addSession, addCustomExercise, setActive, aiTextRemaining, bumpAi } = useStore()
   const [text, setText] = useState('')
   const [aiItems, setAiItems] = useState<MagicItem[] | null>(null)
@@ -141,7 +141,7 @@ export function MagicBar({ className, suggestions }: { className?: string; sugge
           addSteps(it.steps)
           break
         case 'cardio': {
-          const kcal = cardioKcal(it.cardio, state.profile?.weightKg ?? 75, it.minutes)
+          const kcal = cardioKcal(it.cardio, state.profile?.weightKg ?? DEFAULT_WEIGHT_KG, it.minutes)
           addCardio({ date, cardio: it.cardio, minutes: it.minutes, kcal })
           kcalAdded += kcal
           break
@@ -177,10 +177,10 @@ export function MagicBar({ className, suggestions }: { className?: string; sugge
       setActive({ ...state.active, exercises: [...state.active.exercises, ex] })
       return 0
     }
-    const vol = sessionVolume([ex])
+    const vol = Math.round(sets.reduce((a, s) => a + s.kg * s.reps, 0))
     const durationSec = Math.max(300, sets.length * 150)
     const intensity = suggestIntensity(vol, durationSec / 60)
-    const kcal = gymKcal(intensity, state.profile?.weightKg ?? 75, durationSec)
+    const kcal = workoutKcal([ex], state.profile?.weightKg ?? DEFAULT_WEIGHT_KG)
     addSession({
       date: todayKey(),
       routineName: 'Registro rápido',
@@ -204,6 +204,7 @@ export function MagicBar({ className, suggestions }: { className?: string; sugge
         <Sparkles size={18} className="shrink-0 text-emerald" />
         <input
           ref={inputRef}
+          autoFocus={autoFocus}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && items.length > 0 && apply()}

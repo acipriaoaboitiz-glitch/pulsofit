@@ -6,7 +6,7 @@ import { useUI } from '../lib/ui'
 import { useAuth } from '../lib/auth'
 import { cn, fmt, fmtClock, greeting, haptic, keyToDate, todayKey } from '../lib/utils'
 import { buildActive, muscleLoad } from '../lib/workout'
-import { MUSCLES } from '../lib/exercises'
+import { MUSCLES, WEEK_PLAN } from '../lib/exercises'
 import { Ring, SpringNumber } from '../components/Ring'
 import { MacroBar } from '../components/bits'
 import { HydrationCard } from '../components/HydrationCard'
@@ -69,6 +69,10 @@ function WorkoutCard({ date }: { date: string }) {
   const [now] = useState(() => Date.now())
   const load = useMemo(() => muscleLoad(state.sessions, state.active), [state.sessions, state.active])
   const fresh = MUSCLES.filter((m) => !load[m] || now - load[m].lastAt >= H48)
+  const dow = keyToDate(date).getDay()
+  const planDay = dow >= 1 && dow <= 5 ? WEEK_PLAN.find((d) => d.day === dow) : undefined
+  const routine = planDay ? state.routines.find((r) => r.id === `week-${planDay.day}`) : undefined
+
   const vol = sessions.reduce((a, s) => a + s.volume, 0)
   const kcal = sessions.reduce((a, s) => a + s.kcal, 0)
 
@@ -98,6 +102,14 @@ function WorkoutCard({ date }: { date: string }) {
         </div>
       ) : (
         <div className="mt-3">
+          {planDay && (
+            <div className="mb-2.5 rounded-xl bg-neon/10 px-3 py-2">
+              <div className="text-[13px] font-bold">{planDay.name} · {planDay.focus}</div>
+              <div className="num text-[10.5px] text-white/50">
+                {routine ? `${routine.exercises.length} ejercicios · ${routine.exercises.reduce((n, e) => n + e.sets, 0)} series` : 'rutina libre'}
+              </div>
+            </div>
+          )}
           <p className="text-[11px] leading-snug text-white/45">Músculos recuperados</p>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {fresh.slice(0, 4).map((m) => (
@@ -116,7 +128,7 @@ function WorkoutCard({ date }: { date: string }) {
           className="btn-violet mt-auto w-full !py-2.5 pt-2.5 text-[13px]"
           onClick={() => {
             haptic(20)
-            setActive(buildActive(null, state.sessions))
+            setActive(buildActive(routine && routine.exercises.length ? routine : null, state.sessions))
           }}
           style={{ marginTop: 'auto' }}
         >

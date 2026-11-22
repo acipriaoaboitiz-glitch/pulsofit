@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Check, Droplets, Dumbbell, Footprints, ScanBarcode } from 'lucide-react'
+import { Camera, Check, Droplets, Footprints, ScanBarcode, Sparkles } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useUI } from '../lib/ui'
 import { useStore } from '../lib/store'
@@ -15,11 +15,11 @@ interface Item {
 }
 
 const ITEMS: Item[] = [
+  { id: 'magic', label: 'Barra Mágica (texto o voz)', color: '#A78BFA', fg: '#150a3a', icon: Sparkles },
   { id: 'scan', label: 'Escanear código', color: '#10B981', fg: '#04130d', icon: ScanBarcode },
   { id: 'photo', label: 'Foto al plato IA', color: '#8B5CF6', fg: '#fff', icon: Camera },
   { id: 'water', label: '+250 ml agua', color: '#06B6D4', fg: '#021a1f', icon: Droplets },
   { id: 'steps', label: 'Pasos / Cardio', color: '#F97316', fg: '#1c1200', icon: Footprints },
-  { id: 'exercise', label: 'Añadir ejercicio hoy', color: '#A78BFA', fg: '#150a3a', icon: Dumbbell },
 ]
 
 /** true on desktop (≥1024 px), where the + menu becomes a vertical popover next to the side navigation */
@@ -55,7 +55,7 @@ export function QuickMenu() {
       setWatered(true)
       return
     }
-    open(id === 'exercise' ? 'addExercise' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo'))
+    open(id === 'magic' ? 'magic' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo'))
   }
 
   if (desktop) {

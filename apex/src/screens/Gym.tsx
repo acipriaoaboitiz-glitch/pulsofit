@@ -6,11 +6,12 @@ import { Sheet } from '../components/Sheet'
 import { RoutineEditor } from '../features/RoutineEditor'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
-import { GROUPS, allExercises, exerciseById, groupOf } from '../lib/exercises'
+import { GROUPS, allExercises, exerciseById, groupOf, isWeekRoutine } from '../lib/exercises'
 import type { Group } from '../lib/exercises'
 import { bestE1rm, buildActive, exerciseHistory, exerciseKcalShare, muscleLoad, newExercise } from '../lib/workout'
 import { MuscleMap } from '../components/MuscleMap'
 import { MagicBar } from '../features/MagicBar'
+import { WeekPlan } from '../features/WeekPlan'
 import type { Routine, SetLog } from '../lib/types'
 import { fmt, fmtClock, haptic, keyToDate, todayKey } from '../lib/utils'
 
@@ -97,6 +98,8 @@ export function Gym() {
   const [group, setGroup] = useState<Group>('Pecho')
   const [open, setOpen] = useState<string | null>(null)
   const [justAdded, setJustAdded] = useState<string | null>(null)
+  /** routines you created yourself (the Mon–Fri plan has its own panel) */
+  const others = state.routines.filter((r) => !isWeekRoutine(r))
   const [now] = useState(() => Date.now())
 
   // every exercise of the muscle group (catalog + your own) with its history
@@ -162,7 +165,7 @@ export function Gym() {
     <div className="px-4 pb-8 lg:px-0">
       <PageHeader
         title="Gimnasio"
-        sub="Por músculos · tus rutinas, tú las creas"
+        sub="Tu semana · biblioteca por músculos"
         right={
           <button
             className="btn-ghost !rounded-2xl !px-3.5 !py-2.5 text-[13px]"
@@ -178,6 +181,8 @@ export function Gym() {
 
       <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-5 lg:space-y-0">
         <MagicBar className="lg:col-span-12" />
+
+        <WeekPlan className="lg:col-span-12" onEdit={setEditing} />
 
         {/* ---- muscles → all their exercises ---- */}
         <div className="space-y-4 lg:col-span-7">
@@ -307,13 +312,13 @@ export function Gym() {
                 <Plus size={15} /> Nueva rutina
               </button>
             </div>
-            {state.routines.length === 0 ? (
+            {others.length === 0 ? (
               <p className="rounded-2xl bg-white/[0.03] px-4 py-5 text-center text-[13px] leading-snug text-white/45">
-                No hay rutinas hechas. Elige ejercicios de cada músculo y arma las tuyas cuando quieras, o entrena en sesión libre.
+                Aquí van tus otras rutinas. Elige ejercicios de cada músculo y arma las que quieras, o entrena en sesión libre.
               </p>
             ) : (
               <div className="space-y-3">
-                {state.routines.map((r) => (
+                {others.map((r) => (
                   <RoutineCard key={r.id} r={r} onEdit={() => setEditing(r)} />
                 ))}
               </div>

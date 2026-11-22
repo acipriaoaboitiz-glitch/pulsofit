@@ -103,6 +103,8 @@ export interface RoutineExercise {
   sets: number
   reps: number
   restSec: number
+  /** extra, optional work (shown with a BONUS badge) */
+  bonus?: boolean
 }
 
 export interface Routine extends Rec {
@@ -123,6 +125,7 @@ export interface SessionExercise {
   exerciseId: string
   sets: SetLog[]
   restSec?: number
+  bonus?: boolean
 }
 
 export type Intensity = 'light' | 'moderate' | 'high'

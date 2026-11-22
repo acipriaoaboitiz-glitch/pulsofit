@@ -12,6 +12,7 @@ export type SheetName =
   | 'product'
   | 'start'
   | 'addExercise'
+  | 'magic'
   | 'activity'
   | 'account'
   | 'profile'

@@ -1,6 +1,6 @@
 import type { ActiveWorkout, Muscle, Routine, SessionExercise, SetLog, WorkoutSession } from './types'
-import { epley } from './calc'
-import { exerciseById } from './exercises'
+import { epley, exerciseSetsKcal } from './calc'
+import { exerciseById, exerciseMet } from './exercises'
 
 /** Sets of the most recent finished session that included this exercise (done sets only). */
 export function lastSetsFor(sessions: WorkoutSession[], exerciseId: string): SetLog[] | null {
@@ -22,12 +22,12 @@ export function ghostSets(sessions: WorkoutSession[], exerciseId: string, count:
   })
 }
 
-export function newExercise(sessions: WorkoutSession[], exerciseId: string, sets = 3, reps = 10, restSec = 90): SessionExercise {
-  return { exerciseId, sets: ghostSets(sessions, exerciseId, sets, reps), restSec }
+export function newExercise(sessions: WorkoutSession[], exerciseId: string, sets = 3, reps = 12, restSec = 90, bonus?: boolean): SessionExercise {
+  return { exerciseId, sets: ghostSets(sessions, exerciseId, sets, reps), restSec, bonus }
 }
 
 export function buildActive(routine: Routine | null, sessions: WorkoutSession[]): ActiveWorkout {
-  const exercises = (routine?.exercises ?? []).map((re) => newExercise(sessions, re.exerciseId, re.sets, re.reps, re.restSec))
+  const exercises = (routine?.exercises ?? []).map((re) => newExercise(sessions, re.exerciseId, re.sets, re.reps, re.restSec, re.bonus))
   return {
     routineName: routine?.name ?? 'Sesión libre',
     startedAt: Date.now(),
@@ -129,4 +129,9 @@ export function exerciseHistory(sessions: WorkoutSession[], exerciseId: string):
     if (sets.length) out.push({ session: s, sets, kcal: exerciseKcalShare(s, exerciseId) })
   }
   return out
+}
+
+/** Total kcal of a workout = sum of every exercise's completed sets (MET 6 compound / 4 isolation). */
+export function workoutKcal(exs: SessionExercise[], bodyKg: number): number {
+  return exs.reduce((a, e) => a + exerciseSetsKcal(exerciseMet(e.exerciseId), bodyKg, e.sets), 0)
 }
