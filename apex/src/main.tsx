@@ -12,9 +12,22 @@ createRoot(document.getElementById('root')!).render(
 // Offline shell + installability (production only, so dev HMR is never cached)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      /* ignore: PWA still installs without offline cache */
-    })
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((reg) => {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') void reg.update()
+        })
+        let reloaded = false
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloaded) return
+          reloaded = true
+          window.location.reload() // a new deployment took control: load it right away
+        })
+      })
+      .catch(() => {
+        /* ignore: PWA still installs without offline cache */
+      })
   })
 }
 

@@ -207,6 +207,8 @@ export interface Per100 {
   fat: number
 }
 
+export type StoreId = 'mercadona' | 'lidl' | 'aldi' | 'eroski'
+
 export interface FoodProduct {
   id: string
   name: string
@@ -216,5 +218,7 @@ export interface FoodProduct {
   per100: Per100
   servingG?: number
   servingLabel?: string
+  /** Spanish chain that sells it (detected from Open Food Facts) */
+  store?: StoreId
   source: FoodLog['source']
 }

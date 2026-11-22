@@ -163,7 +163,7 @@ export function Today() {
           </div>
         </div>
         <button
-          onClick={() => ui.open(auth.session ? 'profile' : 'account')}
+          onClick={() => ui.open('profile')}
           className="grid h-11 w-11 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] transition active:scale-90"
           style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
           aria-label="Perfil y cuenta"

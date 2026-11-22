@@ -9,6 +9,7 @@ import type { FoodLog, Meal } from '../lib/types'
 import { MacroBar, PageHeader } from '../components/bits'
 import { Ring, SpringNumber } from '../components/Ring'
 import { MagicBar } from '../features/MagicBar'
+import { SuperStaples } from '../features/SuperStaples'
 import { AI_PHOTO_LIMIT } from '../lib/store'
 
 const SUGGESTIONS = ['200g pollo con 150g arroz', 'un plátano y un yogur natural', '2 huevos y 2 tostadas con aceite', 'avena 50g con leche', '30 min de bici', '500 ml de agua']
@@ -229,6 +230,8 @@ export function Nutrition() {
             </div>
           </section>
         )}
+
+        <SuperStaples date={date} className="lg:col-span-12" />
 
         {/* day summary */}
         <section className="card flex items-center gap-5 p-5 lg:col-span-5">

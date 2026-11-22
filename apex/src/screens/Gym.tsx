@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Dumbbell, Flame, Pencil, Play, Plus, Trash2, Trophy } from 'lucide-react'
+import { Check, ChevronDown, Dumbbell, Flame, Pencil, Play, Plus, Trash2, Trophy } from 'lucide-react'
 import { PageHeader } from '../components/bits'
 import { Sheet } from '../components/Sheet'
 import { RoutineEditor } from '../features/RoutineEditor'
@@ -98,6 +98,8 @@ export function Gym() {
   const [group, setGroup] = useState<Group>('Pecho')
   const [open, setOpen] = useState<string | null>(null)
   const [justAdded, setJustAdded] = useState<string | null>(null)
+  /** the muscle library / extra routines / recovery map stay folded: the Gym tab is your Mon–Fri plan */
+  const [more, setMore] = useState(false)
   /** routines you created yourself (the Mon–Fri plan has its own panel) */
   const others = state.routines.filter((r) => !isWeekRoutine(r))
   const [now] = useState(() => Date.now())
@@ -165,7 +167,7 @@ export function Gym() {
     <div className="px-4 pb-8 lg:px-0">
       <PageHeader
         title="Gimnasio"
-        sub="Tu semana · biblioteca por músculos"
+        sub="Tu semana de lunes a viernes"
         right={
           <button
             className="btn-ghost !rounded-2xl !px-3.5 !py-2.5 text-[13px]"
@@ -184,6 +186,18 @@ export function Gym() {
 
         <WeekPlan className="lg:col-span-12" onEdit={setEditing} />
 
+        <button
+          type="button"
+          aria-expanded={more}
+          onClick={() => setMore((m) => !m)}
+          className="flex w-full items-center justify-between rounded-2xl border border-line bg-white/[0.03] px-4 py-3.5 text-left text-[13.5px] font-bold text-white/70 lg:col-span-12"
+        >
+          <span>Biblioteca de ejercicios, recuperación y más</span>
+          <ChevronDown size={18} className={`transition-transform ${more ? 'rotate-180' : ''}`} />
+        </button>
+
+        {more && (
+          <>
         {/* ---- muscles → all their exercises ---- */}
         <div className="space-y-4 lg:col-span-7">
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0" role="tablist" aria-label="Grupos musculares">
@@ -336,6 +350,8 @@ export function Gym() {
             <MuscleMap load={load} now={now} />
           </section>
         </div>
+          </>
+        )}
 
         {history.length > 0 && (
           <section className="lg:col-span-12">

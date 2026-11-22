@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Cloud, Download, Loader2, LogOut, RefreshCw, Trash2 } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
-import { AuthForm } from '../components/AuthForm'
 import { Segmented } from '../components/bits'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
@@ -90,10 +89,9 @@ function CloudCard() {
   return (
     <div className="card-raised space-y-3 p-4">
       <div>
-        <p className="text-[15px] font-extrabold">Tu cuenta</p>
-        <p className="mt-0.5 text-[12.5px] leading-snug text-white/50">Crea una cuenta gratis para ver tus entrenos, comidas y pasos en el móvil y en el ordenador. Lo que ya has registrado como invitado se sube contigo.</p>
+        <p className="text-[15px] font-extrabold">Modo local</p>
+        <p className="mt-0.5 text-[12.5px] leading-snug text-white/50">La nube no está configurada: tus datos solo viven en este dispositivo. Añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY al .env para sincronizar entre móvil y ordenador.</p>
       </div>
-      <AuthForm compact />
     </div>
   )
 }
@@ -113,7 +111,7 @@ function Body() {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `apex-datos-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `pulso-datos-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(a.href)
   }

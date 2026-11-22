@@ -1,4 +1,4 @@
-# APEX
+# PULSO
 
 Entrenamiento de gimnasio dinámico, nutrición con escáner (código de barras + foto IA), pasos en segundo plano e hidratación.
 PWA mobile-first lista para empaquetar con Capacitor. 100 % gratis, sin límites de rutinas.

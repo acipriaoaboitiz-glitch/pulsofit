@@ -24,9 +24,9 @@ export function SideNav() {
       <div className="mb-7 flex items-center gap-3 px-2">
         <svg viewBox="0 0 512 512" width="34" height="34" aria-hidden>
           <rect width="512" height="512" rx="112" fill="#0F131C" />
-          <polyline points="112,352 256,150 400,352" fill="none" stroke="#10B981" strokeWidth="38" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points="86,256 186,256 226,160 284,360 322,256 426,256" fill="none" stroke="#10B981" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="text-[22px] font-extrabold tracking-tight">APEX</span>
+        <span className="text-[22px] font-extrabold tracking-[0.12em]">PULSO</span>
       </div>
 
       <motion.button
@@ -71,17 +71,17 @@ export function SideNav() {
 
       <div className="mt-auto">
         <button
-          onClick={() => open(auth.session ? 'profile' : 'account')}
+          onClick={() => open('profile')}
           className="flex w-full items-center gap-3 rounded-2xl border border-line bg-card px-3 py-3 text-left transition hover:border-white/15"
         >
           <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-full', auth.session ? 'bg-emerald/15 text-emerald' : 'bg-white/[0.06] text-white/60')}>
             <UserRound size={18} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-bold">{auth.session ? auth.email : 'Invitado'}</span>
+            <span className="block truncate text-[13px] font-bold">{auth.session ? auth.email : 'Modo local'}</span>
             <span className={cn('flex items-center gap-1 text-[11px]', auth.session ? 'text-emerald' : 'text-white/45')}>
               {auth.session ? <Cloud size={11} /> : <CloudOff size={11} />}
-              {auth.session ? (auth.status === 'syncing' ? 'Sincronizando…' : 'Sincronizado') : 'Crear cuenta para sincronizar'}
+              {auth.session ? (auth.status === 'syncing' ? 'Sincronizando…' : 'Sincronizado') : 'Solo en este dispositivo'}
             </span>
           </span>
         </button>

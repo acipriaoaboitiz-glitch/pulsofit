@@ -16,20 +16,17 @@ export interface AuthResult {
 
 const NO_CLOUD: AuthResult = { error: 'La nube no está configurada: añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY al .env.' }
 const friendly = (m: string): string =>
-  /invalid login/i.test(m) ? 'Email o contraseña incorrectos.' : /already registered|already been registered/i.test(m) ? 'Ese email ya tiene cuenta: pulsa «Entrar».' : /password/i.test(m) && /6|short|weak/i.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit|too many/i.test(m) ? 'Demasiados intentos, espera un momento.' : m
+  /invalid login/i.test(m) ? 'Email o contraseña incorrectos.' : /already registered|already been registered/i.test(m) ? m : /password/i.test(m) && /6|short|weak/i.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit|too many/i.test(m) ? 'Demasiados intentos, espera un momento.' : m
 
 interface AuthCtx {
   session: Session | null
+  /** true until the stored session has been read (avoids flashing the login screen) */
+  loading: boolean
   email: string | null
   cloud: boolean
   status: SyncStatus
   error: string | null
-  /** Crear cuenta con email + contraseña. `info` = hay que confirmar el correo antes de entrar. */
-  signUpPassword: (email: string, password: string) => Promise<AuthResult>
   signInPassword: (email: string, password: string) => Promise<AuthResult>
-  resetPassword: (email: string) => Promise<AuthResult>
-  signInEmail: (email: string) => Promise<string | null>
-  signInGoogle: () => Promise<string | null>
   signOut: () => Promise<void>
   syncNow: () => void
 }
@@ -40,6 +37,7 @@ const OWNER_KEY = 'apex.owner'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const store = useStore()
   const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(cloudEnabled)
   const [status, setStatus] = useState<SyncStatus>('off')
   const [error, setError] = useState<string | null>(null)
   const stateRef = useRef(store.state)
@@ -50,7 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Session bootstrap
   useEffect(() => {
     if (!supabase) return
-    void supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => setSession(data.session))
+      .catch(() => undefined)
+      .finally(() => setLoading(false))
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
@@ -117,42 +119,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthCtx>(
     () => ({
       session,
+      loading,
       email: session?.user.email ?? null,
       cloud: cloudEnabled,
       status,
       error,
-      signUpPassword: async (email, password) => {
-        if (!supabase) return NO_CLOUD
-        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
-        if (err) return { error: friendly(err.message) }
-        // with "Confirm email" enabled Supabase returns a user but no session
-        return data.session ? {} : { info: 'Cuenta creada. Revisa tu correo y confirma el enlace para entrar.' }
-      },
       signInPassword: async (email, password) => {
         if (!supabase) return NO_CLOUD
         const { error: err } = await supabase.auth.signInWithPassword({ email, password })
         return err ? { error: friendly(err.message) } : {}
-      },
-      resetPassword: async (email) => {
-        if (!supabase) return NO_CLOUD
-        const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
-        return err ? { error: friendly(err.message) } : { info: 'Te hemos enviado un correo para restablecer la contraseña.' }
-      },
-      signInEmail: async (email) => {
-        if (!supabase) return 'Supabase no está configurado.'
-        const { error: err } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: window.location.origin },
-        })
-        return err ? err.message : null
-      },
-      signInGoogle: async () => {
-        if (!supabase) return 'Supabase no está configurado.'
-        const { error: err } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo: window.location.origin },
-        })
-        return err ? err.message : null
       },
       signOut: async () => {
         await supabase?.auth.signOut()
@@ -160,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       syncNow: () => void run(),
     }),
-    [session, status, error, run],
+    [session, loading, status, error, run],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { StoreProvider, useStore } from './lib/store'
-import { AuthProvider } from './lib/auth'
+import { AuthProvider, useAuth } from './lib/auth'
 import { UIProvider, useUI } from './lib/ui'
 import { Onboarding } from './screens/Onboarding'
 import { Today } from './screens/Today'
@@ -9,7 +9,8 @@ import { Nutrition } from './screens/Nutrition'
 import { Gym, StartSheet, SummarySheet } from './screens/Gym'
 import { ActivityScreen } from './screens/ActivityScreen'
 import { TabBar } from './components/TabBar'
-import { Intro } from './components/Intro'
+import { SplashScreen } from './components/SplashScreen'
+import { LoginScreen } from './screens/LoginScreen'
 import { SideNav } from './components/SideNav'
 import { QuickMenu } from './features/QuickMenu'
 import { ScannerSheet } from './features/ScannerSheet'
@@ -90,15 +91,18 @@ function Shell({ ready }: { ready: boolean }) {
   )
 }
 
+/** Private gate: with Supabase configured the app needs a signed-in session; without it, local mode opens directly. */
+function Gate({ ready }: { ready: boolean }) {
+  const auth = useAuth()
+  if (!auth.cloud) return <Shell ready={ready} />
+  if (auth.loading) return null // splash is still covering the screen
+  if (!auth.session) return <LoginScreen />
+  return <Shell ready={ready} />
+}
+
 export default function App() {
-  // the cinematic plays once per visit (session)
-  const [introDone, setIntroDone] = useState(() => {
-    try {
-      return sessionStorage.getItem('apex.intro') === '1'
-    } catch {
-      return false
-    }
-  })
+  // the splash plays on every open (web and installed PWA)
+  const [introDone, setIntroDone] = useState(false)
   return (
     <StoreProvider>
       <AuthProvider>
@@ -108,19 +112,8 @@ export default function App() {
             <i className="a2" />
             <i className="a3" />
           </div>
-          <Shell ready={introDone} />
-          {!introDone && (
-            <Intro
-              onDone={() => {
-                try {
-                  sessionStorage.setItem('apex.intro', '1')
-                } catch {
-                  /* ignore */
-                }
-                setIntroDone(true)
-              }}
-            />
-          )}
+          <Gate ready={introDone} />
+          {!introDone && <SplashScreen onDone={() => setIntroDone(true)} />}
         </UIProvider>
       </AuthProvider>
     </StoreProvider>

@@ -1,17 +1,17 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'app.apex.fit',
-  appName: 'APEX',
+  appId: 'app.pulso.fit',
+  appName: 'PULSO',
   webDir: 'dist',
-  backgroundColor: '#07090E',
+  backgroundColor: '#05070B',
   android: {
     // keeps the dark splash instead of a white flash on cold start
-    backgroundColor: '#07090E',
+    backgroundColor: '#05070B',
   },
   ios: {
     contentInset: 'always',
-    backgroundColor: '#07090E',
+    backgroundColor: '#05070B',
   },
 }
 

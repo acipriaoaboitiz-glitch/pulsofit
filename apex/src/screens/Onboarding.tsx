@@ -6,9 +6,7 @@ import { ACTIVITY_LABELS, GOAL_LABELS, computeTargets } from '../lib/metabolic'
 import type { ActivityLevel, Goal, Profile, Sex, Targets } from '../lib/types'
 import { cn, fmt, haptic, todayKey } from '../lib/utils'
 import { Segmented } from '../components/bits'
-import { Sheet } from '../components/Sheet'
 import { Ring, SpringNumber } from '../components/Ring'
-import { AuthForm } from '../components/AuthForm'
 
 type Draft = Omit<Profile, 'u'>
 
@@ -107,7 +105,6 @@ function PlanReveal({ plan, onDone }: { plan: Targets; onDone: () => void }) {
 export function Onboarding() {
   const { saveProfile, addWeight } = useStore()
   const [step, setStep] = useState(0)
-  const [authOpen, setAuthOpen] = useState(false)
   const [reveal, setReveal] = useState(false)
   const saved = useRef(false)
   const [dir, setDir] = useState(1)
@@ -150,7 +147,7 @@ export function Onboarding() {
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald text-[#04130d]">
             <Sparkles size={20} strokeWidth={2.8} />
           </div>
-          <span className="text-xl font-extrabold tracking-tight">APEX</span>
+          <span className="text-xl font-extrabold tracking-tight">PULSO</span>
         </div>
         <div className="flex gap-1.5" aria-label={`Paso ${step + 1} de 3`}>
           {[0, 1, 2].map((i) => (
@@ -300,23 +297,13 @@ export function Onboarding() {
           </button>
         ) : (
           <button className="btn-primary flex-1" onClick={finish}>
-            Empezar con APEX <Sparkles size={18} />
+            Empezar con PULSO <Sparkles size={18} />
           </button>
         )}
       </div>
 
-      {step === 0 && (
-        <button type="button" onClick={() => setAuthOpen(true)} className="mt-4 text-center text-[13px] font-semibold text-white/50 underline-offset-2 hover:underline">
-          ¿Ya tienes cuenta? <span className="text-emerald">Entrar</span>
-        </button>
-      )}
-
       <AnimatePresence>{reveal && <PlanReveal plan={preview} onDone={commit} />}</AnimatePresence>
 
-      <Sheet open={authOpen} onClose={() => setAuthOpen(false)} title="Entrar o crear cuenta">
-        <p className="mb-4 text-[13px] leading-snug text-white/55">Con tu cuenta ves los mismos datos en el móvil y en el ordenador. Si ya tenías datos, se cargan al entrar.</p>
-        <AuthForm initialMode="login" onDone={() => setAuthOpen(false)} />
-      </Sheet>
     </div>
   )
 }

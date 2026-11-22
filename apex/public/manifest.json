@@ -1,14 +1,14 @@
 {
-  "name": "APEX · Entreno, Nutrición y Pasos",
-  "short_name": "APEX",
+  "name": "PULSO · Entreno, Nutrición y Pasos",
+  "short_name": "PULSO",
   "description": "Entrenamiento dinámico, escáner IA de comida, pasos e hidratación. 100% gratis.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#07090E",
-  "theme_color": "#07090E",
+  "background_color": "#05070B",
+  "theme_color": "#05070B",
   "lang": "es",
   "categories": [
     "health",

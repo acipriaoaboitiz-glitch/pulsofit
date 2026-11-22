@@ -111,8 +111,8 @@ export function WeekPlan({ onEdit, className }: { onEdit: (r: Routine) => void; 
 
       {rows.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.02] px-5 py-8 text-center">
-          <p className="text-[15px] font-bold">Día de {plan.focus.toLowerCase()} libre</p>
-          <p className="mx-auto mt-1 max-w-[300px] text-[13px] leading-snug text-white/45">Añade tus ejercicios cuando entrenes: se guardan en este día y los tendrás la próxima semana.</p>
+          <p className="text-[15px] font-bold">Día de {plan.focus.toLowerCase()} libre — añade lo que hagas hoy</p>
+          <p className="mx-auto mt-1 max-w-[300px] text-[13px] leading-snug text-white/45">Lo que añadas se queda en este día y lo tendrás la próxima semana con tus últimos pesos.</p>
           <button className="btn-violet mt-5 w-full max-w-[320px] !py-3.5 text-[15px]" onClick={() => setPicker(true)}>
             <Plus size={18} strokeWidth={3} /> Añadir ejercicio
           </button>

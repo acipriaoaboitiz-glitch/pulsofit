@@ -1,5 +1,5 @@
-/* APEX service worker — app-shell cache. Never touches /api, Supabase or Open Food Facts. */
-const CACHE = 'apex-shell-v1'
+/* PULSO service worker — app-shell cache. Never touches /api, Supabase or Open Food Facts. */
+const CACHE = 'pulso-shell-v2'
 const SHELL = ['/', '/manifest.json', '/icons/icon.svg', '/icons/icon-192.png']
 
 self.addEventListener('install', (e) => {
@@ -25,7 +25,7 @@ self.addEventListener('fetch', (e) => {
   // navigations: network first, fall back to the cached shell (offline)
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           const copy = res.clone()
           caches.open(CACHE).then((c) => c.put('/', copy))
