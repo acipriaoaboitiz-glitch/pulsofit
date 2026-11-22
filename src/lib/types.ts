@@ -56,13 +56,16 @@ export interface DailySteps extends Rec {
   source: 'manual' | 'health'
 }
 
-export type CardioKind = 'walk' | 'run' | 'bike' | 'elliptical' | 'swim' | 'sport'
+export type CardioKind = 'walk' | 'run' | 'bike' | 'elliptical' | 'swim' | 'sport' | 'treadmill'
 
 export interface CardioLog extends Rec {
   date: string
   cardio: CardioKind
   minutes: number
   kcal: number
+  /** treadmill only: incline % and speed km/h (remembered for the next session) */
+  inclinePct?: number
+  speedKmh?: number
 }
 
 export interface WeightLog extends Rec {

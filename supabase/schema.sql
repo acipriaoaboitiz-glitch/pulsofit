@@ -90,9 +90,11 @@ create table if not exists public.cardio_logs (
   user_id    uuid not null references auth.users (id) on delete cascade,
   id         text not null,
   date       date not null,
-  cardio     text not null check (cardio in ('walk', 'run', 'bike', 'elliptical', 'swim', 'sport')),
+  cardio     text not null check (cardio in ('walk', 'run', 'bike', 'elliptical', 'swim', 'sport', 'treadmill')),
   minutes    int  not null check (minutes > 0),
   kcal       numeric not null default 0,
+  incline_pct numeric check (incline_pct between 0 and 40),
+  speed_kmh   numeric check (speed_kmh between 0 and 30),
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );

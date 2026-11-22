@@ -4,7 +4,7 @@ import { cn, fmt } from '../lib/utils'
 
 export function PageHeader({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <header className="flex items-end justify-between px-5 pb-4 pt-[calc(18px+var(--safe-top))] lg:px-0 lg:pb-6 lg:pt-0">
+    <header className="flex items-end justify-between px-5 pb-4 pt-4 lg:px-0 lg:pb-6 lg:pt-0">
       <div>
         {sub && <p className="label mb-1">{sub}</p>}
         <h1 className="text-[28px] font-extrabold leading-none tracking-tight lg:text-[36px]">{title}</h1>

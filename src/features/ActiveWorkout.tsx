@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronsUp, Copy, Disc3, Flame, Minus, Plus, Timer, Trash2, Trophy, X } from 'lucide-react'
+import { Check, CheckCheck, ChevronsUp, Copy, Disc3, Flame, Minus, Plus, Timer, Trash2, Trophy, X } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
 import { Ring } from '../components/Ring'
 import { Confetti } from '../components/Confetti'
@@ -224,6 +224,31 @@ export function ActiveWorkout() {
     } else haptic(20)
   }
 
+  /** «Completar N series igual»: every pending set done with the pre-filled kg × reps, one rest timer. */
+  const completeAll = (ei: number) => {
+    primeAudio()
+    const ex = active.exercises[ei]!
+    if (ex.sets.every((s) => s.done)) return
+    let prSet: SetLog | undefined
+    const sets = ex.sets.map((s, si) => {
+      if (s.done) return s
+      const pr = isPr(bests.get(ex.exerciseId) ?? null, ex.sets.slice(0, si), s)
+      if (pr && !prSet) prSet = s
+      return { ...s, done: true, pr: pr || undefined }
+    })
+    update((a) => ({ ...a, restEndsAt: Date.now() + a.restTotal * 1000, exercises: a.exercises.map((e, i) => (i !== ei ? e : { ...e, sets })) }))
+    firedFor.current = null
+    setRestDone(false)
+    navigator.vibrate?.(15)
+    if (prSet) {
+      haptic([30, 60, 30, 60, 120])
+      beep(2)
+      setBurst((b) => b + 1)
+      setToast(`NEW PR · ${exerciseById(ex.exerciseId)?.name ?? ''} · 1RM est. ${Math.round(epley(prSet.kg, prSet.reps))} kg`)
+      window.setTimeout(() => setToast(null), 3400)
+    } else haptic([20, 40, 20])
+  }
+
   const addSet = (ei: number) =>
     update((a) => ({
       ...a,
@@ -410,8 +435,15 @@ export function ActiveWorkout() {
                 ))}
               </div>
 
+              {ex.sets.some((s) => !s.done) && (
+                <motion.button whileTap={{ scale: 0.96 }} className="mt-2.5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-emerald/30 bg-emerald/10 text-[13.5px] font-bold text-emerald" onClick={() => completeAll(ei)}>
+                  <CheckCheck size={17} strokeWidth={2.6} />
+                  Completar {ex.sets.filter((s) => !s.done).length} {ex.sets.filter((s) => !s.done).length === 1 ? 'serie' : 'series'} igual
+                </motion.button>
+              )}
+
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <button className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/55 active:bg-white/[0.05]" onClick={() => addSet(ei)}>
+                <button className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/55 active:bg-white/[0.05]" onClick={() => addSet(ei)}>
                   <Plus size={15} strokeWidth={3} /> Añadir serie
                 </button>
                 <button

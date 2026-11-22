@@ -46,3 +46,14 @@ if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
     })
   })
 }
+
+// Global touch feedback: a light 15 ms vibration on every button / tab / option tap
+document.addEventListener(
+  'pointerdown',
+  (e) => {
+    if (e.pointerType === 'mouse') return
+    const el = (e.target as Element | null)?.closest?.('button, a, [role="tab"], [role="radio"], [role="menuitem"]') as HTMLButtonElement | null
+    if (el && !el.disabled) navigator.vibrate?.(15)
+  },
+  { passive: true },
+)

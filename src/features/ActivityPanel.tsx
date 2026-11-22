@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentType } from 'react'
-import { Activity as ActivityIcon, Bike, Check, Flame, Footprints, HeartPulse, RefreshCw, Trash2, Trophy, Waves, Wind } from 'lucide-react'
+import { Activity as ActivityIcon, Bike, Check, Flame, Footprints, HeartPulse, RefreshCw, Trash2, TrendingUp, Trophy, Waves, Wind } from 'lucide-react'
 import { Ring } from '../components/Ring'
 import { Stepper } from '../components/bits'
 import { useStore } from '../lib/store'
@@ -17,6 +17,7 @@ const ICONS: Record<CardioKind, ComponentType<{ size?: number }>> = {
   elliptical: ActivityIcon,
   swim: Waves,
   sport: Trophy,
+  treadmill: TrendingUp,
 }
 
 export const STEP_GOAL = 10000
@@ -246,7 +247,7 @@ export function ActivityPanel({ compact = false, onDone }: { compact?: boolean; 
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-[14px] font-bold">{cardioById(c.cardio).name}</div>
-                        <div className="num text-[12px] text-white/40">{c.minutes} min</div>
+                        <div className="num text-[12px] text-white/40">{c.minutes} min{c.cardio === 'treadmill' && c.inclinePct !== undefined && c.speedKmh !== undefined ? ` · ${c.inclinePct}% · ${c.speedKmh.toFixed(1)} km/h` : ''}</div>
                       </div>
                       <div className="num text-[14px] font-bold text-fire">
                         {fmt(c.kcal)}

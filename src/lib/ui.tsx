@@ -14,6 +14,7 @@ export type SheetName =
   | 'addExercise'
   | 'magic'
   | 'activity'
+  | 'treadmill'
   | 'account'
   | 'profile'
   | 'custom'

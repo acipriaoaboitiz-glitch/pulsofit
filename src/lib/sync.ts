@@ -58,8 +58,8 @@ const SPECS: Spec[] = [
   spec<CardioLog>(
     'cardio',
     'cardio_logs',
-    (r) => ({ id: r.id, date: r.date, cardio: r.cardio, minutes: r.minutes, kcal: r.kcal }),
-    (x) => ({ id: String(x.id), u: ms(x.updated_at), date: String(x.date), cardio: x.cardio as CardioLog['cardio'], minutes: num(x.minutes), kcal: num(x.kcal) }),
+    (r) => ({ id: r.id, date: r.date, cardio: r.cardio, minutes: r.minutes, kcal: r.kcal, incline_pct: r.inclinePct ?? null, speed_kmh: r.speedKmh ?? null }),
+    (x) => ({ id: String(x.id), u: ms(x.updated_at), date: String(x.date), cardio: x.cardio as CardioLog['cardio'], minutes: num(x.minutes), kcal: num(x.kcal), inclinePct: x.incline_pct == null ? undefined : num(x.incline_pct), speedKmh: x.speed_kmh == null ? undefined : num(x.speed_kmh) }),
   ),
   spec<WeightLog>('weights', 'weight_logs', (r) => ({ id: r.id, date: r.date, kg: r.kg }), (x) => ({ id: String(x.id), u: ms(x.updated_at), date: String(x.date), kg: num(x.kg) })),
   spec<SavedFood>(

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ComponentType } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, ChevronDown, ChevronLeft, ChevronRight, Coffee, Cookie, Copy, Moon, Plus, ScanBarcode, Search, Sparkles, Trash2, Utensils } from 'lucide-react'
+import { Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Coffee, Cookie, Copy, History, Moon, Plus, ScanBarcode, Search, Sparkles, Trash2, Utensils } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
 import { MEALS, addDays, cn, defaultMeal, fmt, haptic, prettyDate, todayKey } from '../lib/utils'
@@ -117,21 +117,29 @@ export function Nutrition() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const t = totals(date)
 
-  /** most repeated foods (last 60 days) with the amount you usually eat */
-  const usual = useMemo(() => {
-    const since = addDays(todayKey(), -60)
+  /** last 12 distinct foods you logged, with the amount you ate: one tap adds them again */
+  const recents = useMemo(() => {
     const by = new Map<string, { n: number; last: FoodLog }>()
     for (const f of state.food) {
-      if (f.date < since) continue
-      const cur = by.get(f.name)
-      by.set(f.name, { n: (cur?.n ?? 0) + 1, last: !cur || f.u > cur.last.u ? f : cur.last })
+      const key = f.name.toLowerCase()
+      const cur = by.get(key)
+      by.set(key, { n: (cur?.n ?? 0) + 1, last: !cur || f.u > cur.last.u ? f : cur.last })
     }
     return [...by.values()]
-      .filter((x) => x.n >= 2)
-      .sort((a, b) => b.n - a.n)
-      .slice(0, 8)
+      .sort((a, b) => b.last.u - a.last.u)
+      .slice(0, 12)
       .map((x) => ({ ...x.last, n: x.n }))
   }, [state.food])
+
+  /** what you ate in each meal yesterday (for «Repetir ayer») */
+  const yesterday = useMemo(() => {
+    const out: Record<Meal, FoodLog[]> = { desayuno: [], comida: [], cena: [], snack: [] }
+    const y = addDays(date, -1)
+    for (const f of state.food) if (f.date === y) out[f.meal].push(f)
+    for (const m of Object.keys(out) as Meal[]) out[m].sort((a, b) => a.u - b.u)
+    return out
+  }, [state.food, date])
+  const [copied, setCopied] = useState<Meal | null>(null)
 
   const byMeal = useMemo(() => {
     const out: Record<Meal, FoodLog[]> = { desayuno: [], comida: [], cena: [], snack: [] }
@@ -163,6 +171,36 @@ export function Nutrition() {
           </div>
         }
       />
+
+      {recents.length > 0 && (
+        <section className="mb-4 lg:mb-6" aria-label="Recientes y frecuentes">
+          <h2 className="label mb-2 flex items-center gap-1.5 px-1 !text-emerald">
+            <Sparkles size={11} /> Recientes y Frecuentes (1 toque)
+          </h2>
+          <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
+            {recents.map((u) => (
+              <motion.button
+                key={u.name}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => {
+                  haptic([12, 24, 12])
+                  navigator.vibrate?.(15)
+                  addFood({ date, meal: defaultMeal(), name: u.name, brand: u.brand, grams: u.grams, kcal: u.kcal, protein: u.protein, carbs: u.carbs, fat: u.fat, source: u.source, image: u.image })
+                  setAdded(u.name)
+                  window.setTimeout(() => setAdded(null), 1200)
+                }}
+                className="card-raised flex min-h-[64px] w-[168px] shrink-0 flex-col items-start justify-center gap-0.5 px-3.5 py-2.5 text-left"
+              >
+                <span className="w-full truncate text-[13px] font-bold">{u.name}</span>
+                <span className="num text-[11px] text-white/45">
+                  {u.grams} g · {u.kcal} kcal
+                </span>
+                <span className={cn('num text-[11px] font-bold', added === u.name ? 'text-emerald' : 'text-white/30')}>{added === u.name ? '✓ añadido' : u.n > 1 ? `× ${u.n} veces` : 'toca para repetir'}</span>
+              </motion.button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-6">
         {/* ── right on desktop (sticky): summary, Barra Mágica, big scan buttons ── */}
@@ -218,36 +256,6 @@ export function Nutrition() {
               </div>
             </motion.button>
           </section>
-
-          {usual.length > 0 && (
-            <section>
-              <h2 className="label mb-2 flex items-center gap-1.5 px-1 !text-emerald">
-                <Sparkles size={11} /> Lo de siempre
-              </h2>
-              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
-                {usual.map((u) => (
-                  <motion.button
-                    key={u.name}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => {
-                      haptic([12, 24, 12])
-                      navigator.vibrate?.(15)
-                      addFood({ date, meal: defaultMeal(), name: u.name, brand: u.brand, grams: u.grams, kcal: u.kcal, protein: u.protein, carbs: u.carbs, fat: u.fat, source: 'custom' })
-                      setAdded(u.name)
-                      window.setTimeout(() => setAdded(null), 1200)
-                    }}
-                    className="card-raised flex min-w-[150px] max-w-[190px] shrink-0 flex-col items-start gap-0.5 px-3.5 py-2.5 text-left"
-                  >
-                    <span className="w-full truncate text-[13px] font-bold">{u.name}</span>
-                    <span className="num text-[11px] text-white/45">
-                      {u.grams} g · {u.kcal} kcal
-                    </span>
-                    <span className={cn('num text-[11px] font-bold', added === u.name ? 'text-emerald' : 'text-white/30')}>{added === u.name ? '✓ añadido' : `× ${u.n} veces`}</span>
-                  </motion.button>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
 
         {/* ── left on desktop: meals of the day, search and supermarket staples ── */}
@@ -286,10 +294,30 @@ export function Nutrition() {
                       <ChevronDown size={18} />
                     </motion.span>
                   </button>
+                  {yesterday[m.id].length > 0 && (
+                    <motion.button
+                      whileTap={{ scale: 0.94 }}
+                      aria-label={`Repetir ayer en ${m.label}`}
+                      className={cn('flex min-h-[44px] shrink-0 items-center gap-1 rounded-xl border px-2.5 text-[11.5px] font-bold transition-colors', copied === m.id ? 'border-emerald/40 bg-emerald/15 text-emerald' : 'border-white/[0.08] bg-white/[0.04] text-white/55')}
+                      onClick={() => {
+                        haptic([12, 24, 12])
+                        navigator.vibrate?.(15)
+                        for (const f of yesterday[m.id]) {
+                          const { id: _id, u: _u, ...rest } = f
+                          addFood({ ...rest, date })
+                        }
+                        setCopied(m.id)
+                        window.setTimeout(() => setCopied((c) => (c === m.id ? null : c)), 1400)
+                      }}
+                    >
+                      {copied === m.id ? <Check size={14} strokeWidth={3} /> : <History size={14} />}
+                      {copied === m.id ? 'Copiado' : 'Repetir ayer'}
+                    </motion.button>
+                  )}
                   <motion.button
                     whileTap={{ scale: 0.92 }}
                     aria-label={`Añadir a ${m.label}`}
-                    className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl border', st.tile, st.tone)}
+                    className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-xl border', st.tile, st.tone)}
                     onClick={() => {
                       navigator.vibrate?.(15)
                       ui.open('search', { meal: m.id, date })

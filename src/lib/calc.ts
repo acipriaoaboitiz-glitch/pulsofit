@@ -80,7 +80,27 @@ export const CARDIO: CardioDef[] = [
   { id: 'swim', name: 'Natación', met: 6.0 },
   { id: 'sport', name: 'Fútbol / Deporte', met: 7.0 },
 ]
-export const cardioById = (id: CardioKind): CardioDef => CARDIO.find((c) => c.id === id) ?? CARDIO[0]
+/** Treadmill is logged with its own ACSM formula (not listed with the MET activities). */
+const TREADMILL_DEF: CardioDef = { id: 'treadmill', name: 'Cinta inclinada', met: 8 }
+export const cardioById = (id: CardioKind): CardioDef => [...CARDIO, TREADMILL_DEF].find((c) => c.id === id) ?? CARDIO[0]
+
+// ---------------------------------------------------------------- inclined treadmill (ACSM walking equation)
+export const TREADMILL_FALLBACK_KG = 90
+export const TREADMILL_MINUTES = [20, 30, 40, 45]
+export const TREADMILL_PRESETS = [
+  { id: 'habitual', name: 'Mi Cinta Habitual', speed: 4.5, incline: 15 },
+  { id: 'suave', name: 'Cinta Suave', speed: 4.0, incline: 15 },
+] as const
+
+/**
+ * VO2 = 3.5 + 0.1·v + 1.8·v·pendiente (v en m/min) → kcal = VO2 · kg / 200 · minutos.
+ * Ej.: 4.5 km/h al 15 % con 90 kg ≈ 422 kcal en 30 min.
+ */
+export function treadmillKcal(speedKmh: number, inclinePct: number, weightKg: number, minutes: number): number {
+  const v = (speedKmh * 1000) / 60
+  const vo2 = 3.5 + 0.1 * v + 1.8 * v * (inclinePct / 100)
+  return Math.round(((vo2 * weightKg) / 200) * minutes)
+}
 export const cardioKcal = (kind: CardioKind, weightKg: number, minutes: number): number => metKcal(cardioById(kind).met, weightKg, minutes)
 
 // ---------------------------------------------------------------- kcal per exercise (sum of its completed sets)

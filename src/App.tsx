@@ -12,6 +12,7 @@ import { TabBar } from './components/TabBar'
 import { SplashScreen } from './components/SplashScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { SideNav } from './components/SideNav'
+import { MobileHeader } from './components/MobileHeader'
 import { QuickMenu } from './features/QuickMenu'
 import { ScannerSheet } from './features/ScannerSheet'
 import { PhotoSheet } from './features/PhotoSheet'
@@ -19,6 +20,7 @@ import { ProductSheet } from './features/ProductSheet'
 import { CustomSheet, SearchSheet } from './features/SearchSheet'
 import { ProfileSheet } from './features/ProfileSheet'
 import { ActiveWorkout } from './features/ActiveWorkout'
+import { TreadmillSheet } from './features/TreadmillSheet'
 import { AddExerciseSheet, MagicSheet, QuickActivitySheet, StepSyncer } from './features/GlobalSheets'
 
 const TAB_ORDER = ['hoy', 'nutricion', 'gimnasio', 'actividad'] as const
@@ -51,7 +53,8 @@ function Shell({ ready }: { ready: boolean }) {
     <div className="page-bg h-full min-h-screen w-full">
       <SideNav />
       <div className="h-full w-full lg:pl-64">
-      <main ref={scroller} className="h-full overflow-y-auto overscroll-contain pb-[calc(120px+var(--safe-bottom))] lg:pb-0">
+      <main ref={scroller} className="h-full overflow-y-auto overflow-x-hidden overscroll-contain pb-[calc(120px+var(--safe-bottom))] lg:pb-0">
+        <MobileHeader />
         <div className="mx-auto w-full max-w-[1440px] lg:px-8 lg:py-8">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -83,6 +86,7 @@ function Shell({ ready }: { ready: boolean }) {
       <AddExerciseSheet />
       <MagicSheet />
       <QuickActivitySheet />
+      <TreadmillSheet />
       <StepSyncer />
       <ProfileSheet />
       <SummarySheet />

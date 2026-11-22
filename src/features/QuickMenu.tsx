@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Check, Droplets, Footprints, ScanBarcode, Sparkles } from 'lucide-react'
+import { Camera, Check, Droplets, Footprints, ScanBarcode, Sparkles, TrendingUp } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useUI } from '../lib/ui'
 import { useStore } from '../lib/store'
@@ -19,7 +19,8 @@ const ITEMS: Item[] = [
   { id: 'scan', label: 'Escanear código', color: '#10B981', fg: '#04130d', icon: ScanBarcode },
   { id: 'photo', label: 'Foto al plato IA', color: '#8B5CF6', fg: '#fff', icon: Camera },
   { id: 'water', label: '+250 ml agua', color: '#06B6D4', fg: '#021a1f', icon: Droplets },
-  { id: 'steps', label: 'Pasos / Cardio', color: '#F97316', fg: '#1c1200', icon: Footprints },
+  { id: 'treadmill', label: 'Cardio · Cinta 15%', color: '#FB923C', fg: '#1c0b00', icon: TrendingUp },
+  { id: 'steps', label: 'Pasos y actividad', color: '#F97316', fg: '#1c1200', icon: Footprints },
 ]
 
 /** true on desktop (≥1024 px), where the + menu becomes a vertical popover next to the side navigation */
@@ -55,7 +56,7 @@ export function QuickMenu() {
       setWatered(true)
       return
     }
-    open(id === 'magic' ? 'magic' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo'))
+    open(id === 'magic' ? 'magic' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo' | 'treadmill'))
   }
 
   if (desktop) {
@@ -122,7 +123,7 @@ export function QuickMenu() {
                     transition={{ type: 'spring', damping: 24, stiffness: 340, delay: 0.04 + i * 0.04 }}
                     whileTap={{ scale: 0.94 }}
                     aria-label={it.label}
-                    className={`relative flex flex-col items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.04] px-1.5 py-3.5 ${i < 3 ? 'col-span-2' : 'col-span-3'}`}
+                    className={`relative flex flex-col items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.04] px-1.5 py-3.5 col-span-2`}
                     style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)' }}
                   >
                     <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: `linear-gradient(145deg, ${it.color}, ${it.color}bb)`, color: it.fg, boxShadow: `0 10px 24px -8px ${it.color}` }}>

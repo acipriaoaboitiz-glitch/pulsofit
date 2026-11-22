@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Check, Flame, Pencil, Play, Plus } from 'lucide-react'
 import { ExercisePicker } from './ExercisePicker'
+import { TreadmillCard } from './TreadmillSheet'
 import { useStore } from '../lib/store'
 import { GROUP_COLOR, WEEK_PLAN, WEEK_PROGRAM, WEEK_REPS, exerciseById, exerciseMet, groupOf, todayPlanDay } from '../lib/exercises'
 import { DEFAULT_WEIGHT_KG, setKcal } from '../lib/calc'
@@ -166,6 +167,8 @@ export function WeekPlan({ onEdit, className, day: dayProp, onDay }: { onEdit: (
           </div>
         </>
       )}
+
+      <TreadmillCard className="mt-4 lg:mt-6" />
 
       <ExercisePicker open={picker} onClose={() => setPicker(false)} title={`Añadir a ${plan.name}`} exclude={routine?.exercises.map((e) => e.exerciseId)} onPick={addToDay} />
     </section>

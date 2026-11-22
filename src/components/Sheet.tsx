@@ -60,7 +60,14 @@ export function Sheet({ open, onClose, title, children, full, z = 50 }: SheetPro
                 <X size={18} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(24px+var(--safe-bottom))] pt-2">
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(24px+var(--safe-bottom))] pt-2"
+              onFocusCapture={(e) => {
+                // keep the focused field above the on-screen keyboard
+                const t = e.target as HTMLElement
+                if (/^(INPUT|TEXTAREA)$/.test(t.tagName)) window.setTimeout(() => t.scrollIntoView({ block: 'center', behavior: 'smooth' }), 320)
+              }}
+            >
               {children}
             </div>
           </motion.div>

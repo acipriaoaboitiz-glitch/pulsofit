@@ -12,6 +12,19 @@ body,
 #root {
   height: 100%;
 }
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* touch screens: every control is at least 44 px tall */
+@media (pointer: coarse) {
+  .btn,
+  .chip,
+  .input {
+    min-height: 44px;
+  }
+}
 
 body {
   margin: 0;
