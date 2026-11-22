@@ -14,6 +14,7 @@ export function HydrationCard({ date }: { date: string }) {
   const pct = Math.min(1, ml / goal)
 
   const add = (delta: number) => {
+    navigator.vibrate?.(15)
     const before = ml
     addWater(delta, date)
     const after = Math.max(0, before + delta)
@@ -22,7 +23,7 @@ export function HydrationCard({ date }: { date: string }) {
   }
 
   return (
-    <section className="card flex flex-col p-4">
+    <section className="card flex flex-col p-4 lg:p-6">
       <div className="flex items-center justify-between">
         <span className="label flex items-center gap-1.5 !text-aqua">
           <Droplets size={12} /> Hidratación
@@ -36,7 +37,7 @@ export function HydrationCard({ date }: { date: string }) {
         </button>
       </div>
 
-      <div className="relative mt-3 h-[92px] overflow-hidden rounded-2xl border border-aqua/20 bg-aqua/[0.045]">
+      <div className="relative mt-3 h-[92px] flex-1 overflow-hidden lg:min-h-[150px] rounded-2xl border border-aqua/20 bg-aqua/[0.045]">
         <motion.div className="absolute inset-x-0 bottom-0" initial={{ height: 0 }} animate={{ height: `${pct * 100}%` }} transition={{ type: 'spring', stiffness: 70, damping: 15 }}>
           {pct > 0.005 && (
             <div className="absolute inset-x-0 -top-[9px] h-[10px] overflow-hidden">
@@ -55,14 +56,14 @@ export function HydrationCard({ date }: { date: string }) {
         </motion.div>
         <div className="absolute inset-0 grid place-items-center">
           <div className="text-center drop-shadow-[0_1px_6px_rgba(0,0,0,0.6)]">
-            <SpringNumber value={ml} className="num text-[26px] font-bold leading-none" />
+            <SpringNumber value={ml} className="num text-[26px] font-bold leading-none lg:text-[38px]" />
             <div className="num mt-0.5 text-[10px] text-white/70">/ {fmt(goal)} ml</div>
           </div>
         </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <motion.button whileTap={{ scale: 0.92 }} onClick={() => add(250)} className="num flex h-11 items-center justify-center gap-1 rounded-xl bg-aqua/15 text-[13px] font-bold text-aqua active:bg-aqua/25">
+        <motion.button whileTap={{ scale: 0.92 }} onClick={() => add(250)} className="num flex h-11 items-center justify-center gap-1 rounded-xl bg-aqua/15 lg:h-12 text-[13px] font-bold text-aqua active:bg-aqua/25">
           <Plus size={13} strokeWidth={3} />
           250
         </motion.button>

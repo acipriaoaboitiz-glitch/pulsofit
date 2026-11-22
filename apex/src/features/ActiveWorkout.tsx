@@ -247,11 +247,11 @@ export function ActiveWorkout() {
   const plateSet = plates && plateEx ? plateEx.sets[plates.si] : undefined
 
   return (
-    <motion.div className="fixed inset-0 z-[60] flex flex-col bg-obsidian" initial={{ y: '100%' }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 34 }}>
+    <motion.div className="fixed inset-0 z-[60] flex flex-col bg-[#04060A] lg:left-64 lg:flex-row" initial={{ y: '100%' }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 34 }}>
       {burst > 0 && <Confetti key={burst} />}
 
       {/* header: live session bar */}
-      <div className="px-4 pb-3 transition-[padding] duration-300 lg:px-[max(1.5rem,calc((100%-1000px)/2))]" style={{ paddingTop: resting || restDone ? "calc(68px + var(--safe-top))" : "calc(14px + var(--safe-top))" }}>
+      <div className="px-4 pb-3 transition-[padding] duration-300 lg:order-2 lg:w-[380px] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-white/[0.06] lg:bg-[#070A10]/80 lg:px-6 lg:!pt-8" style={{ paddingTop: resting || restDone ? "calc(68px + var(--safe-top))" : "calc(14px + var(--safe-top))" }}>
         <div className="flex items-center justify-between gap-3">
           <button onClick={() => setDiscarding(true)} aria-label="Descartar entreno" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.08] bg-white/[0.05] text-white/60 active:scale-90">
             <X size={18} />
@@ -274,7 +274,7 @@ export function ActiveWorkout() {
         <div className="card mt-3 grid grid-cols-3 divide-x divide-white/[0.07] py-3">
           <div className="text-center">
             <div className="label !text-[9px]">Tiempo</div>
-            <div className="num mt-1 text-[20px] font-bold leading-none text-violet-300">{fmtHms(elapsed)}</div>
+            <div className="num mt-1 text-[20px] font-bold leading-none text-violet-300 lg:text-[24px]">{fmtHms(elapsed)}</div>
           </div>
           <div className="text-center">
             <div className="label !text-[9px]">Volumen</div>
@@ -315,10 +315,40 @@ export function ActiveWorkout() {
             ))}
           </div>
         </div>
+
+        <AnimatePresence initial={false}>
+          {(resting || restDone) && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-4 hidden overflow-hidden lg:block">
+              <div className="card flex items-center gap-4 p-4">
+                <Ring size={88} stroke={8} value={resting ? rest / active.restTotal : restDone ? 1 : 0} gradient={restDone ? ['#10B981', '#06B6D4'] : ['#8B5CF6', '#C4B5FD']} glow={false}>
+                  <span className="num text-[17px] font-bold">{resting ? fmtClock(Math.ceil(rest)) : '0:00'}</span>
+                </Ring>
+                {resting ? (
+                  <div className="flex flex-1 flex-col gap-2">
+                    <span className="label !text-neon">Descanso</span>
+                    <div className="flex gap-1.5">
+                      <button className="num flex-1 rounded-xl bg-white/[0.09] py-2 text-[12px] font-bold active:scale-95" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) - 15000 }))}>
+                        −15s
+                      </button>
+                      <button className="num flex-1 rounded-xl bg-white/[0.09] py-2 text-[12px] font-bold active:scale-95" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) + 15000 }))}>
+                        +15s
+                      </button>
+                      <button className="flex-1 rounded-xl bg-neon py-2 text-[12px] font-bold text-white active:scale-95" onClick={() => update((a) => ({ ...a, restEndsAt: null }))}>
+                        Saltar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-[15px] font-extrabold text-emerald">¡Siguiente serie!</span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* exercises */}
-      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-[170px] pt-4 lg:grid lg:grid-cols-2 lg:content-start lg:items-start lg:gap-4 lg:space-y-0 lg:px-[max(1.5rem,calc((100%-1000px)/2))]">
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-[170px] pt-4 lg:order-1 lg:grid lg:auto-rows-max lg:grid-cols-2 lg:content-start lg:items-start lg:gap-5 lg:space-y-0 lg:px-8 lg:pt-8">
         {active.exercises.length === 0 && <p className="py-10 text-center text-sm text-white/40 lg:col-span-2">Sesión libre: añade ejercicios según lo que hagas hoy.</p>}
         {active.exercises.map((ex, ei) => {
           const def = exerciseById(ex.exerciseId)
@@ -449,7 +479,7 @@ export function ActiveWorkout() {
       </div>
 
       {/* rest timer: Dynamic-Island style pill at the top */}
-      <div className="pointer-events-none absolute inset-x-0 top-[calc(8px+var(--safe-top))] z-30 flex justify-center px-4">
+      <div className="pointer-events-none absolute inset-x-0 top-[calc(8px+var(--safe-top))] z-30 flex justify-center px-4 lg:hidden">
         <AnimatePresence>
           {(resting || restDone) && (
             <motion.div

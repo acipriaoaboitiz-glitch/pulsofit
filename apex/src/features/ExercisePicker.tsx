@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Check, Plus, Search, Sparkles } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
+import { PillSelect } from '../components/PillSelect'
 import { useStore } from '../lib/store'
 import { GROUPS, allExercises, exerciseById, groupOf, MUSCLES } from '../lib/exercises'
 import type { Group } from '../lib/exercises'
@@ -129,13 +130,8 @@ function PickerBody({ onClose, onPick, exclude, initialGroup }: Omit<Props, 'ope
       {creating ? (
         <div className="card-raised mt-3 space-y-2.5 p-3">
           <input className="input" placeholder="Nombre del ejercicio" value={newName || q} onChange={(e) => setNewName(e.target.value)} autoFocus />
-          <select className="input" value={newMuscle} onChange={(e) => setNewMuscle(e.target.value as Muscle)} aria-label="Músculo principal">
-            {MUSCLES.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          <p className="label !mt-1">Músculo principal</p>
+          <PillSelect<Muscle> size="sm" label="Músculo principal" value={newMuscle} onChange={setNewMuscle} options={MUSCLES.map((m) => ({ id: m, label: m }))} />
           <div className="grid grid-cols-2 gap-2">
             <button className="btn-ghost !py-2.5" onClick={() => setCreating(false)}>
               Cancelar

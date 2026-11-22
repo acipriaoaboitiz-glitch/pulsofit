@@ -18,6 +18,7 @@ export function SuperStaples({ date, className }: { date: string; className?: st
 
   const add = (p: StapleProduct) => {
     haptic([12, 24, 12])
+    navigator.vibrate?.(15)
     const g = p.servingG ?? 100
     const m = macrosFor(p.per100, g)
     addFood({ date, meal: defaultMeal(), name: p.name, brand: p.brand, grams: g, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, source: 'custom' })
@@ -46,7 +47,7 @@ export function SuperStaples({ date, className }: { date: string; className?: st
         ))}
       </div>
 
-      <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:gap-3">
         {list.map((p) => {
           const g = p.servingG ?? 100
           const m = macrosFor(p.per100, g)

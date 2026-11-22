@@ -41,18 +41,18 @@ function Shell({ ready }: { ready: boolean }) {
 
   if (!state.profile) {
     return (
-      <div className="mx-auto h-full max-w-[520px] overflow-y-auto lg:max-w-[560px]">
+      <div className="mx-auto h-full w-full max-w-[640px] overflow-y-auto">
         <Onboarding />
       </div>
     )
   }
 
   return (
-    <div className="page-bg h-full">
+    <div className="page-bg h-full min-h-screen w-full">
       <SideNav />
-      <div className="mx-auto h-full max-w-[520px] lg:max-w-none lg:pl-[248px]">
-      <main ref={scroller} className="h-full overflow-y-auto overscroll-contain pb-[calc(120px+var(--safe-bottom))] lg:pb-10">
-        <div className="mx-auto w-full lg:max-w-[1120px] lg:px-8 xl:px-10">
+      <div className="h-full w-full lg:pl-64">
+      <main ref={scroller} className="h-full overflow-y-auto overscroll-contain pb-[calc(120px+var(--safe-bottom))] lg:pb-0">
+        <div className="mx-auto w-full max-w-[1440px] lg:px-8 lg:py-8">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}

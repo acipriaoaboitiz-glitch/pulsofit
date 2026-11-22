@@ -50,7 +50,7 @@ export function TabBar() {
       className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 lg:hidden"
       style={{ paddingBottom: 'calc(10px + var(--safe-bottom))' }}
     >
-      <div className="relative flex w-full max-w-[480px] items-stretch rounded-[30px] border border-white/[0.09] bg-[#0B0F17]/85 px-1.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),0_24px_50px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
+      <div className="relative flex w-full max-w-[480px] items-stretch rounded-[30px] border border-white/[0.09] bg-[#0B0F17]/90 px-1.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),0_24px_50px_-12px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
         {item(TABS[0])}
         {item(TABS[1])}
         <div className="w-[92px] shrink-0" />
@@ -61,7 +61,7 @@ export function TabBar() {
         <motion.button
           aria-label={quickOpen ? 'Cerrar acciones rápidas' : 'Acciones rápidas'}
           onClick={() => {
-            haptic(15)
+            navigator.vibrate?.(15)
             if (quickOpen) close()
             else open('quick')
           }}
@@ -69,7 +69,7 @@ export function TabBar() {
           whileTap={{ scale: 0.9 }}
           animate={{ rotate: quickOpen ? 135 : 0 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          className="grid h-[62px] w-[62px] place-items-center rounded-full text-[#03130d] ring-4 ring-[#05070B]"
+          className="grid h-[62px] w-[62px] place-items-center rounded-full text-[#03130d] ring-4 ring-[#04060A]"
         >
           <Plus size={30} strokeWidth={3} />
         </motion.button>

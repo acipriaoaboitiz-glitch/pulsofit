@@ -9,19 +9,15 @@ import { buildActive, lastSetsFor } from '../lib/workout'
 import type { Routine } from '../lib/types'
 import { cn, fmt, haptic, todayKey } from '../lib/utils'
 
-/** Monday → Friday selector with the routine of the chosen day. Opens on today's weekday. */
-export function WeekPlan({ onEdit, className }: { onEdit: (r: Routine) => void; className?: string }) {
-  const { state, setActive, saveRoutine } = useStore()
-  const [day, setDay] = useState(todayPlanDay())
-  const [picker, setPicker] = useState(false)
+/** Plan of one weekday: routine, planned kcal per exercise (last weights) and the start action. */
+export function useWeekDay(day: number) {
+  const { state, setActive } = useStore()
   const plan = WEEK_PLAN.find((d) => d.day === day)!
   const routine = state.routines.find((r) => r.id === `week-${day}`)
   const bodyKg = state.profile?.weightKg ?? DEFAULT_WEIGHT_KG
   const realToday = todayPlanDay() === day && new Date().getDay() >= 1 && new Date().getDay() <= 5
-
   const done = realToday && !!routine && state.sessions.some((s) => s.date === todayKey() && s.routineName === routine.name)
 
-  /** planned kcal per exercise: its sets at the last weight you used (or bodyweight work) */
   const rows = useMemo(
     () =>
       (routine?.exercises ?? []).map((e) => {
@@ -34,6 +30,22 @@ export function WeekPlan({ onEdit, className }: { onEdit: (r: Routine) => void; 
   )
   const totalSets = rows.reduce((n, r) => n + r.e.sets, 0)
   const totalKcal = rows.reduce((n, r) => n + r.kcal, 0)
+  const start = () => {
+    if (!routine) return
+    haptic(20)
+    setActive(buildActive(routine, state.sessions))
+  }
+  return { plan, routine, rows, totalSets, totalKcal, done, start }
+}
+
+/** Monday → Friday selector with the routine of the chosen day. Opens on today's weekday. */
+export function WeekPlan({ onEdit, className, day: dayProp, onDay }: { onEdit: (r: Routine) => void; className?: string; day?: number; onDay?: (d: number) => void }) {
+  const { saveRoutine } = useStore()
+  const [own, setOwn] = useState(todayPlanDay())
+  const day = dayProp ?? own
+  const setDay = onDay ?? setOwn
+  const [picker, setPicker] = useState(false)
+  const { plan, routine, rows, totalSets, totalKcal, done, start } = useWeekDay(day)
 
   const ensure = (): Routine => routine ?? { id: `week-${day}`, u: Date.now(), name: plan.name, program: WEEK_PROGRAM, exercises: [] }
 
@@ -47,14 +59,8 @@ export function WeekPlan({ onEdit, className }: { onEdit: (r: Routine) => void; 
     })
   }
 
-  const start = () => {
-    if (!routine) return
-    haptic(20)
-    setActive(buildActive(routine, state.sessions))
-  }
-
   return (
-    <section className={cn('card p-4 sm:p-5', className)}>
+    <section className={cn('card p-4 sm:p-5 lg:p-7', className)}>
       <div className="mb-4 flex items-center justify-between gap-2">
         <p className="label">Mi semana</p>
         {done && (
@@ -119,17 +125,17 @@ export function WeekPlan({ onEdit, className }: { onEdit: (r: Routine) => void; 
         </div>
       ) : (
         <>
-          <ol className="mt-4 space-y-2 lg:grid lg:grid-cols-2 lg:gap-2.5 lg:space-y-0">
+          <ol className="mt-4 space-y-2 lg:mt-5 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
             {rows.map(({ e, def, top, kcal }, i) => {
               const color = def ? GROUP_COLOR[groupOf(def.muscle)] : '#8B5CF6'
               return (
-                <li key={`${e.exerciseId}-${i}`} className="card-raised flex items-center gap-3 px-3.5 py-3">
+                <li key={`${e.exerciseId}-${i}`} className="card-raised flex items-center gap-3 px-3.5 py-3 lg:gap-4 lg:px-5 lg:py-4">
                   <span className="num grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[12px] font-bold" style={{ background: `${color}22`, color }}>
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[14px] font-bold">{def?.name ?? e.exerciseId}</span>
+                      <span className="line-clamp-2 text-[14px] font-bold leading-tight">{def?.name ?? e.exerciseId}</span>
                       {e.bonus && <span className="shrink-0 rounded-md border border-fire/30 bg-fire/10 px-1.5 py-0.5 text-[9px] font-extrabold tracking-[0.12em] text-fire">BONUS</span>}
                     </div>
                     <div className="num mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[11.5px] text-white/45">
@@ -147,12 +153,12 @@ export function WeekPlan({ onEdit, className }: { onEdit: (r: Routine) => void; 
             })}
           </ol>
 
-          <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-2">
-            <button className="btn-violet !py-3.5 text-[15px]" onClick={start}>
+          <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-2 lg:mt-6">
+            <button className="btn-violet !py-3.5 text-[15px] lg:hidden" onClick={start}>
               <Play size={16} fill="currentColor" /> {done ? 'Repetir' : 'Empezar'} {plan.name.toLowerCase()}
             </button>
-            <button className="btn-ghost !px-3.5" onClick={() => setPicker(true)} aria-label="Añadir ejercicio a este día">
-              <Plus size={18} strokeWidth={3} />
+            <button className="btn-ghost !px-3.5 lg:col-span-1" onClick={() => setPicker(true)} aria-label="Añadir ejercicio a este día">
+              <Plus size={18} strokeWidth={3} /> <span className="hidden lg:inline">Añadir ejercicio extra</span>
             </button>
             <button className="btn-ghost !px-3.5" onClick={() => onEdit(ensure())} aria-label="Editar rutina del día">
               <Pencil size={17} />

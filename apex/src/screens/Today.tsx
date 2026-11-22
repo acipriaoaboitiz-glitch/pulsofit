@@ -14,6 +14,7 @@ import { WeightCard } from '../components/WeightCard'
 import { WeekStrip } from '../components/WeekStrip'
 import { MagicBar } from '../features/MagicBar'
 import { STEP_GOAL } from '../features/ActivityPanel'
+import { useDesktop } from '../lib/useMedia'
 
 const H48 = 48 * 3600 * 1000
 
@@ -32,18 +33,19 @@ function StreakBadge({ days }: { days: number }) {
 function StepsCard({ date }: { date: string }) {
   const { totals } = useStore()
   const ui = useUI()
+  const desk = useDesktop()
   const t = totals(date)
   return (
-    <section className="card flex flex-col p-4">
+    <section className="card flex flex-col p-4 lg:p-6">
       <span className="label flex items-center gap-1.5 !text-fire">
         <Footprints size={12} /> Pasos y actividad
       </span>
-      <div className="mt-3 flex items-center gap-3">
-        <Ring size={78} stroke={9} value={t.steps / STEP_GOAL} gradient={['#F97316', '#FBBF24']}>
-          <span className="num text-[13px] font-bold leading-none">{fmt(t.steps)}</span>
+      <div className="mt-3 flex flex-1 items-center gap-3 lg:gap-5">
+        <Ring size={desk ? 116 : 78} stroke={desk ? 12 : 9} value={t.steps / STEP_GOAL} gradient={['#F97316', '#FBBF24']}>
+          <span className="num text-[13px] font-bold leading-none lg:text-[19px]">{fmt(t.steps)}</span>
         </Ring>
         <div className="min-w-0">
-          <div className="num text-[17px] font-bold leading-none">
+          <div className="num text-[17px] font-bold leading-none lg:text-[24px]">
             {t.km.toFixed(1)}
             <span className="ml-0.5 text-[10px] text-white/40">km</span>
           </div>
@@ -54,7 +56,7 @@ function StepsCard({ date }: { date: string }) {
           </div>
         </div>
       </div>
-      <p className="num mt-2 text-[10px] text-white/35">objetivo {fmt(STEP_GOAL)} pasos</p>
+      <p className="num mt-2 text-[10px] text-white/35 lg:mb-3 lg:text-[11px]">objetivo {fmt(STEP_GOAL)} pasos · 24/7</p>
       <button className="btn-ghost mt-auto w-full !py-2.5 text-[13px]" onClick={() => ui.open('activity')}>
         <Plus size={14} strokeWidth={3} /> Registrar
       </button>
@@ -77,7 +79,7 @@ function WorkoutCard({ date }: { date: string }) {
   const kcal = sessions.reduce((a, s) => a + s.kcal, 0)
 
   return (
-    <section className="card flex flex-col p-4">
+    <section className="card flex flex-col p-4 lg:p-6">
       <span className="label flex items-center gap-1.5 !text-neon">
         <Dumbbell size={12} /> Entreno del día
       </span>
@@ -143,6 +145,7 @@ export function Today() {
   const { targets, totals, streak, state } = useStore()
   const ui = useUI()
   const auth = useAuth()
+  const desk = useDesktop()
   const [date, setDate] = useState(todayKey())
   if (!targets || !state.profile) return null
 
@@ -153,84 +156,91 @@ export function Today() {
   const isToday = date === todayKey()
 
   return (
-    <div className="space-y-4 px-4 pb-8 lg:grid lg:grid-cols-12 lg:gap-5 lg:space-y-0 lg:px-0">
-      <header className="flex items-center justify-between px-1 pt-[calc(18px+var(--safe-top))] lg:col-span-12 lg:pt-8">
+    <div className="px-4 pb-8 lg:px-0 lg:pb-0">
+      <header className="flex items-center justify-between px-1 pt-[calc(18px+var(--safe-top))] lg:pt-0">
         <div>
           <p className="label">{keyToDate(date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           <div className="mt-1.5 flex items-center gap-3">
-            <h1 className="text-[28px] font-extrabold leading-none tracking-tight">{isToday ? greeting() : 'Resumen'}</h1>
+            <h1 className="text-[28px] font-extrabold leading-none tracking-tight lg:text-[38px]">{isToday ? greeting() : 'Resumen'}</h1>
             <StreakBadge days={streak} />
           </div>
         </div>
-        <button
-          onClick={() => ui.open('profile')}
-          className="grid h-11 w-11 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] transition active:scale-90"
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          onClick={() => {
+            navigator.vibrate?.(15)
+            ui.open('profile')
+          }}
+          className="grid h-11 w-11 place-items-center rounded-full border border-white/[0.08] bg-white/[0.045] lg:hidden"
           style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
           aria-label="Perfil y cuenta"
         >
           <UserRound size={20} className={auth.session ? 'text-emerald' : 'text-white/70'} />
-        </button>
+        </motion.button>
       </header>
 
-      <div className="lg:col-span-12">
+      <div className="mt-4 lg:mt-6">
         <WeekStrip selected={date} onSelect={setDate} />
       </div>
 
-      <MagicBar className="lg:col-span-12" />
+      <MagicBar className="mt-4 lg:mt-5" />
 
-      {/* Hero energy balance */}
-      <motion.section key={date} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="card relative overflow-hidden p-5 lg:col-span-5 lg:row-span-2">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald/[0.12] blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-aqua/[0.08] blur-3xl" />
-        <div className="relative flex items-center justify-between">
-          <p className="label">Balance energético</p>
-          <p className="num text-[11px] text-white/35">{fmt(targets.kcal)} kcal/día</p>
-        </div>
-
-        <div className="relative my-5 flex justify-center">
-          <Ring size={236} stroke={20} value={t.consumed / budget} gradient={over ? ['#F97316', '#FBBF24'] : ['#10B981', '#06B6D4']}>
-            <Ring size={178} stroke={10} value={t.burned / 500} gradient={['#F97316', '#FBBF24']} glow={false}>
-              <div className="text-center">
-                <SpringNumber value={Math.abs(remaining)} className={cn('num text-[42px] font-bold leading-none', over ? 'text-fire' : 'text-white')} />
-                <div className="label mt-1.5 !text-[9.5px]">{over ? 'kcal de más' : 'kcal restantes'}</div>
-              </div>
-            </Ring>
-          </Ring>
-        </div>
-
-        <div className="relative grid grid-cols-3 gap-2">
-          {[
-            { l: 'Consumidas', v: t.consumed, c: 'text-emerald', b: 'border-emerald/20 bg-emerald/[0.07]' },
-            { l: 'Quemadas', v: t.burned, c: 'text-fire', b: 'border-fire/20 bg-fire/[0.07]' },
-            { l: 'Objetivo', v: targets.kcal, c: 'text-zinc-200', b: 'border-white/[0.08] bg-white/[0.04]' },
-          ].map((x) => (
-            <div key={x.l} className={cn('rounded-2xl border px-2 py-2.5 text-center', x.b)}>
-              <div className="label !text-[9px]">{x.l}</div>
-              <SpringNumber value={x.v} className={cn('num mt-1 block text-[17px] font-bold leading-none', x.c)} />
+      <div className="mt-4 space-y-4 lg:mt-6 lg:grid lg:grid-cols-12 lg:items-stretch lg:gap-6 lg:space-y-0">
+        {/* left: calories hero + macros */}
+        <div className="space-y-4 lg:col-span-5 lg:flex lg:flex-col lg:space-y-6">
+          <motion.section key={date} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="card relative overflow-hidden p-5 lg:flex-1 lg:p-7">
+            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald/[0.14] blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-aqua/[0.09] blur-3xl" />
+            <div className="relative flex items-center justify-between">
+              <p className="label">Balance energético</p>
+              <p className="num text-[11px] text-white/35">{fmt(targets.kcal)} kcal/día</p>
             </div>
-          ))}
+
+            <div className="relative my-5 flex justify-center lg:my-8">
+              <Ring size={desk ? 280 : 236} stroke={desk ? 22 : 20} value={t.consumed / budget} gradient={over ? ['#F97316', '#FBBF24'] : ['#10B981', '#06B6D4']}>
+                <Ring size={desk ? 214 : 178} stroke={desk ? 12 : 10} value={t.burned / 500} gradient={['#F97316', '#FBBF24']} glow={false}>
+                  <div className="text-center">
+                    <SpringNumber value={Math.abs(remaining)} className={cn('num text-[42px] font-bold leading-none lg:text-[54px]', over ? 'text-fire' : 'text-white')} />
+                    <div className="label mt-1.5 !text-[9.5px]">{over ? 'kcal de más' : 'kcal restantes'}</div>
+                  </div>
+                </Ring>
+              </Ring>
+            </div>
+
+            <div className="relative grid grid-cols-3 gap-2 lg:gap-3">
+              {[
+                { l: 'Consumidas', v: t.consumed, c: 'text-emerald', b: 'border-emerald/20 bg-emerald/[0.07]' },
+                { l: 'Quemadas', v: t.burned, c: 'text-fire', b: 'border-fire/20 bg-fire/[0.07]' },
+                { l: 'Objetivo', v: targets.kcal, c: 'text-zinc-200', b: 'border-white/[0.08] bg-white/[0.04]' },
+              ].map((x) => (
+                <div key={x.l} className={cn('rounded-2xl border px-2 py-2.5 text-center lg:py-3.5', x.b)}>
+                  <div className="label !text-[9px]">{x.l}</div>
+                  <SpringNumber value={x.v} className={cn('num mt-1 block text-[17px] font-bold leading-none lg:text-[21px]', x.c)} />
+                </div>
+              ))}
+            </div>
+            {t.burned > 0 && (
+              <p className="num relative mt-3 text-center text-[10.5px] text-white/35">
+                pasos {fmt(t.stepsKcal)} · cardio {fmt(t.cardioKcal)} · pesas {fmt(t.gymKcal)} kcal
+              </p>
+            )}
+          </motion.section>
+
+          <section className="card space-y-4 p-5 lg:space-y-5 lg:p-7">
+            <p className="label">Macronutrientes</p>
+            <MacroBar label="Proteína" value={t.protein} target={targets.protein} color="#10B981" />
+            <MacroBar label="Carbohidratos" value={t.carbs} target={targets.carbs} color="#06B6D4" />
+            <MacroBar label="Grasas" value={t.fat} target={targets.fat} color="#8B5CF6" />
+          </section>
         </div>
-        {t.burned > 0 && (
-          <p className="num relative mt-3 text-center text-[10.5px] text-white/35">
-            pasos {fmt(t.stepsKcal)} · cardio {fmt(t.cardioKcal)} · pesas {fmt(t.gymKcal)} kcal
-          </p>
-        )}
-      </motion.section>
 
-      {/* Macros */}
-      <section className="card space-y-4 p-5 lg:col-span-7">
-        <p className="label">Macronutrientes</p>
-        <MacroBar label="Proteína" value={t.protein} target={targets.protein} color="#10B981" />
-        <MacroBar label="Carbohidratos" value={t.carbs} target={targets.carbs} color="#06B6D4" />
-        <MacroBar label="Grasas" value={t.fat} target={targets.fat} color="#8B5CF6" />
-      </section>
-
-      {/* Bento 2×2 */}
-      <div className="grid grid-cols-2 gap-3 lg:col-span-7 lg:gap-5">
-        <HydrationCard date={date} />
-        <StepsCard date={date} />
-        <WorkoutCard date={date} />
-        <WeightCard date={date} />
+        {/* right: 2×2 bento */}
+        <div className="grid grid-cols-2 gap-3 lg:col-span-7 lg:auto-rows-fr lg:gap-6">
+          <HydrationCard date={date} />
+          <StepsCard date={date} />
+          <WorkoutCard date={date} />
+          <WeightCard date={date} />
+        </div>
       </div>
     </div>
   )

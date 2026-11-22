@@ -10,6 +10,7 @@ import { MacroBar, PageHeader } from '../components/bits'
 import { Ring, SpringNumber } from '../components/Ring'
 import { MagicBar } from '../features/MagicBar'
 import { SuperStaples } from '../features/SuperStaples'
+import { useDesktop } from '../lib/useMedia'
 import { AI_PHOTO_LIMIT } from '../lib/store'
 
 const SUGGESTIONS = ['200g pollo con 150g arroz', 'un plátano y un yogur natural', '2 huevos y 2 tostadas con aceite', 'avena 50g con leche', '30 min de bici', '500 ml de agua']
@@ -143,8 +144,10 @@ export function Nutrition() {
   const budget = targets.kcal + t.burned
   const isToday = date === todayKey()
 
+  const desk = useDesktop()
+
   return (
-    <div className="px-4 pb-8 lg:px-0">
+    <div className="px-4 pb-8 lg:px-0 lg:pb-0">
       <PageHeader
         title="Nutrición"
         sub={`${Math.max(0, targets.kcal - t.consumed + t.burned)} kcal disponibles`}
@@ -161,152 +164,158 @@ export function Nutrition() {
         }
       />
 
-      <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-5 lg:space-y-0">
-        <MagicBar className="lg:col-span-12" suggestions={SUGGESTIONS} />
-
-        {/* hero scan buttons */}
-        <section className="grid grid-cols-2 gap-3 lg:col-span-12">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => {
-              haptic(12)
-              ui.open('scan', { date })
-            }}
-            className="relative overflow-hidden rounded-[26px] border border-emerald/30 p-4 text-left"
-            style={{ background: 'linear-gradient(145deg, rgba(16,185,129,0.28), rgba(6,182,212,0.12) 70%, rgba(11,15,23,0.9))', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 40px -18px rgba(16,185,129,0.5)' }}
-          >
-            <ScanBarcode size={30} className="text-emerald" strokeWidth={1.8} />
-            <div className="mt-6 text-[16px] font-extrabold leading-tight">Escanear código</div>
-            <span className="mt-1.5 inline-block rounded-full bg-emerald/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.12em] text-emerald">Gratis · Ilimitado</span>
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => {
-              haptic(12)
-              ui.open('photo', { date })
-            }}
-            className="relative overflow-hidden rounded-[26px] border border-neon/30 p-4 text-left"
-            style={{ background: 'linear-gradient(145deg, rgba(139,92,246,0.3), rgba(139,92,246,0.08) 70%, rgba(11,15,23,0.9))', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 40px -18px rgba(139,92,246,0.5)' }}
-          >
-            <Camera size={30} className="text-violet-300" strokeWidth={1.8} />
-            <div className="mt-6 text-[16px] font-extrabold leading-tight">Foto al plato IA</div>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <span className="flex gap-1">
-                {Array.from({ length: AI_PHOTO_LIMIT }, (_, i) => (
-                  <span key={i} className={cn('h-1.5 w-4 rounded-full', i < aiRemaining ? 'bg-neon' : 'bg-white/15')} />
-                ))}
-              </span>
-              <span className="num text-[10.5px] text-violet-200">
-                {aiRemaining}/{AI_PHOTO_LIMIT} hoy
-              </span>
-            </div>
-          </motion.button>
-        </section>
-
-        {usual.length > 0 && (
-          <section className="lg:col-span-12">
-            <h2 className="label mb-2 flex items-center gap-1.5 px-1 !text-emerald">
-              <Sparkles size={11} /> Lo de siempre
-            </h2>
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0">
-              {usual.map((u) => (
-                <button
-                  key={u.name}
-                  onClick={() => {
-                    haptic([12, 24, 12])
-                    addFood({ date, meal: defaultMeal(), name: u.name, brand: u.brand, grams: u.grams, kcal: u.kcal, protein: u.protein, carbs: u.carbs, fat: u.fat, source: 'custom' })
-                    setAdded(u.name)
-                    window.setTimeout(() => setAdded(null), 1200)
-                  }}
-                  className="card-raised flex min-w-[150px] max-w-[190px] shrink-0 flex-col items-start gap-0.5 px-3.5 py-2.5 text-left active:scale-95"
-                >
-                  <span className="w-full truncate text-[13px] font-bold">{u.name}</span>
-                  <span className="num text-[11px] text-white/45">
-                    {u.grams} g · {u.kcal} kcal
-                  </span>
-                  <span className={cn('num text-[11px] font-bold', added === u.name ? 'text-emerald' : 'text-white/30')}>{added === u.name ? '✓ añadido' : `× ${u.n} veces`}</span>
-                </button>
-              ))}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-6">
+        {/* ── right on desktop (sticky): summary, Barra Mágica, big scan buttons ── */}
+        <div className="order-1 space-y-4 lg:order-2 lg:col-span-5 lg:max-h-[calc(100dvh-4rem)] lg:space-y-5 lg:overflow-y-auto lg:sticky lg:top-8 lg:pb-2">
+          <section className="card flex items-center gap-5 p-5 lg:p-6">
+            <Ring size={desk ? 140 : 112} stroke={desk ? 13 : 11} value={t.consumed / budget} gradient={['#10B981', '#06B6D4']}>
+              <SpringNumber value={t.consumed} className="num text-[22px] font-bold leading-none lg:text-[28px]" />
+              <span className="label mt-1 !text-[8.5px]">kcal</span>
+            </Ring>
+            <div className="flex-1 space-y-3">
+              <MacroBar label="Proteína" value={t.protein} target={targets.protein} color="#10B981" />
+              <MacroBar label="Carbos" value={t.carbs} target={targets.carbs} color="#06B6D4" />
+              <MacroBar label="Grasas" value={t.fat} target={targets.fat} color="#8B5CF6" />
             </div>
           </section>
-        )}
 
-        <SuperStaples date={date} className="lg:col-span-12" />
+          <MagicBar suggestions={SUGGESTIONS} />
 
-        {/* day summary */}
-        <section className="card flex items-center gap-5 p-5 lg:col-span-5">
-          <Ring size={112} stroke={11} value={t.consumed / budget} gradient={['#10B981', '#06B6D4']}>
-            <SpringNumber value={t.consumed} className="num text-[22px] font-bold leading-none" />
-            <span className="label mt-1 !text-[8.5px]">kcal</span>
-          </Ring>
-          <div className="flex-1 space-y-3">
-            <MacroBar label="Proteína" value={t.protein} target={targets.protein} color="#10B981" />
-            <MacroBar label="Carbos" value={t.carbs} target={targets.carbs} color="#06B6D4" />
-            <MacroBar label="Grasas" value={t.fat} target={targets.fat} color="#8B5CF6" />
-          </div>
-        </section>
-
-        <button className="card flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:scale-[0.99] lg:col-span-7" onClick={() => ui.open('search', { date })}>
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.06] text-white/60">
-            <Search size={19} />
-          </span>
-          <span className="flex-1">
-            <span className="block text-[14px] font-bold">Buscar alimento</span>
-            <span className="block text-[12px] text-white/40">Open Food Facts en español · comidas guardadas</span>
-          </span>
-          <ChevronRight size={18} className="text-white/30" />
-        </button>
-
-        {/* meals */}
-        {MEALS.map((m) => {
-          const list = byMeal[m.id]
-          const kcal = list.reduce((a, f) => a + f.kcal, 0)
-          const st = MEAL_STYLE[m.id]
-          const Icon = st.icon
-          const open = !collapsed[m.id]
-          return (
-            <section key={m.id} className="card p-3.5 lg:col-span-6">
-              <div className="flex items-center gap-3">
-                <button className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open} onClick={() => setCollapsed((c) => ({ ...c, [m.id]: open }))}>
-                  <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-2xl border', st.tile, st.tone)}>
-                    <Icon size={20} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-extrabold leading-none">{m.label}</span>
-                    <span className="num mt-1 block text-[12px] text-white/45">
-                      {fmt(kcal)} kcal · {list.length} {list.length === 1 ? 'alimento' : 'alimentos'}
-                    </span>
-                  </span>
-                  <motion.span animate={{ rotate: open ? 0 : -90 }} className="text-white/30">
-                    <ChevronDown size={18} />
-                  </motion.span>
-                </button>
-                <button
-                  aria-label={`Añadir a ${m.label}`}
-                  className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl border active:scale-90', st.tile, st.tone)}
-                  onClick={() => {
-                    haptic(10)
-                    ui.open('search', { meal: m.id, date })
-                  }}
-                >
-                  <Plus size={20} strokeWidth={3} />
-                </button>
+          <section className="grid grid-cols-2 gap-3 lg:gap-4">
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={() => {
+                navigator.vibrate?.(15)
+                ui.open('scan', { date })
+              }}
+              className="relative overflow-hidden rounded-[26px] border border-emerald/30 p-4 text-left lg:p-6"
+              style={{ background: 'linear-gradient(145deg, rgba(16,185,129,0.28), rgba(6,182,212,0.12) 70%, rgba(11,15,23,0.9))', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 40px -18px rgba(16,185,129,0.5)' }}
+            >
+              <ScanBarcode size={desk ? 38 : 30} className="text-emerald" strokeWidth={1.8} />
+              <div className="mt-6 text-[16px] font-extrabold leading-tight lg:mt-10 lg:text-[19px]">Escanear código</div>
+              <span className="mt-1.5 inline-block rounded-full bg-emerald/20 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.12em] text-emerald">Gratis · Ilimitado</span>
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={() => {
+                navigator.vibrate?.(15)
+                ui.open('photo', { date })
+              }}
+              className="relative overflow-hidden rounded-[26px] border border-neon/30 p-4 text-left lg:p-6"
+              style={{ background: 'linear-gradient(145deg, rgba(139,92,246,0.3), rgba(139,92,246,0.08) 70%, rgba(11,15,23,0.9))', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 40px -18px rgba(139,92,246,0.5)' }}
+            >
+              <Camera size={desk ? 38 : 30} className="text-violet-300" strokeWidth={1.8} />
+              <div className="mt-6 text-[16px] font-extrabold leading-tight lg:mt-10 lg:text-[19px]">Foto al plato IA</div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="flex gap-1">
+                  {Array.from({ length: AI_PHOTO_LIMIT }, (_, i) => (
+                    <span key={i} className={cn('h-1.5 w-4 rounded-full', i < aiRemaining ? 'bg-neon' : 'bg-white/15')} />
+                  ))}
+                </span>
+                <span className="num text-[10.5px] text-violet-200">
+                  {aiRemaining}/{AI_PHOTO_LIMIT} hoy
+                </span>
               </div>
+            </motion.button>
+          </section>
 
-              <AnimatePresence initial={false}>
-                {open && list.length > 0 && (
-                  <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-2.5 space-y-1.5 overflow-hidden">
-                    <AnimatePresence initial={false}>
-                      {list.map((f) => (
-                        <Entry key={f.id} f={f} />
-                      ))}
-                    </AnimatePresence>
-                  </motion.ul>
-                )}
-              </AnimatePresence>
+          {usual.length > 0 && (
+            <section>
+              <h2 className="label mb-2 flex items-center gap-1.5 px-1 !text-emerald">
+                <Sparkles size={11} /> Lo de siempre
+              </h2>
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
+                {usual.map((u) => (
+                  <motion.button
+                    key={u.name}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => {
+                      haptic([12, 24, 12])
+                      navigator.vibrate?.(15)
+                      addFood({ date, meal: defaultMeal(), name: u.name, brand: u.brand, grams: u.grams, kcal: u.kcal, protein: u.protein, carbs: u.carbs, fat: u.fat, source: 'custom' })
+                      setAdded(u.name)
+                      window.setTimeout(() => setAdded(null), 1200)
+                    }}
+                    className="card-raised flex min-w-[150px] max-w-[190px] shrink-0 flex-col items-start gap-0.5 px-3.5 py-2.5 text-left"
+                  >
+                    <span className="w-full truncate text-[13px] font-bold">{u.name}</span>
+                    <span className="num text-[11px] text-white/45">
+                      {u.grams} g · {u.kcal} kcal
+                    </span>
+                    <span className={cn('num text-[11px] font-bold', added === u.name ? 'text-emerald' : 'text-white/30')}>{added === u.name ? '✓ añadido' : `× ${u.n} veces`}</span>
+                  </motion.button>
+                ))}
+              </div>
             </section>
-          )
-        })}
+          )}
+        </div>
+
+        {/* ── left on desktop: meals of the day, search and supermarket staples ── */}
+        <div className="order-2 space-y-4 lg:order-1 lg:col-span-7 lg:space-y-5">
+          <button className="card flex w-full items-center gap-3 px-4 py-3.5 text-left transition active:scale-[0.99] lg:px-5 lg:py-4" onClick={() => ui.open('search', { date })}>
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.06] text-white/60">
+              <Search size={19} />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[14px] font-bold">Buscar alimento</span>
+              <span className="block text-[12px] text-white/40">Open Food Facts España · Mercadona, Lidl, Aldi, Eroski</span>
+            </span>
+            <ChevronRight size={18} className="text-white/30" />
+          </button>
+
+          {MEALS.map((m) => {
+            const list = byMeal[m.id]
+            const kcal = list.reduce((a, f) => a + f.kcal, 0)
+            const st = MEAL_STYLE[m.id]
+            const Icon = st.icon
+            const open = !collapsed[m.id]
+            return (
+              <section key={m.id} className="card p-3.5 lg:p-4">
+                <div className="flex items-center gap-3">
+                  <button className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-expanded={open} onClick={() => setCollapsed((c) => ({ ...c, [m.id]: open }))}>
+                    <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-2xl border', st.tile, st.tone)}>
+                      <Icon size={20} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-extrabold leading-none">{m.label}</span>
+                      <span className="num mt-1 block text-[12px] text-white/45">
+                        {fmt(kcal)} kcal · {list.length} {list.length === 1 ? 'alimento' : 'alimentos'}
+                      </span>
+                    </span>
+                    <motion.span animate={{ rotate: open ? 0 : -90 }} className="text-white/30">
+                      <ChevronDown size={18} />
+                    </motion.span>
+                  </button>
+                  <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    aria-label={`Añadir a ${m.label}`}
+                    className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl border', st.tile, st.tone)}
+                    onClick={() => {
+                      navigator.vibrate?.(15)
+                      ui.open('search', { meal: m.id, date })
+                    }}
+                  >
+                    <Plus size={20} strokeWidth={3} />
+                  </motion.button>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {open && list.length > 0 && (
+                    <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-2.5 space-y-1.5 overflow-hidden">
+                      <AnimatePresence initial={false}>
+                        {list.map((f) => (
+                          <Entry key={f.id} f={f} />
+                        ))}
+                      </AnimatePresence>
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
+              </section>
+            )
+          })}
+
+          <SuperStaples date={date} />
+        </div>
       </div>
     </div>
   )

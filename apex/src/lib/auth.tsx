@@ -14,7 +14,7 @@ export interface AuthResult {
   info?: string
 }
 
-const NO_CLOUD: AuthResult = { error: 'La nube no está configurada: añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY al .env.' }
+const NO_CLOUD: AuthResult = { error: 'La sincronización no está disponible ahora mismo. Inténtalo más tarde.' }
 const friendly = (m: string): string =>
   /invalid login/i.test(m) ? 'Email o contraseña incorrectos.' : /already registered|already been registered/i.test(m) ? m : /password/i.test(m) && /6|short|weak/i.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit|too many/i.test(m) ? 'Demasiados intentos, espera un momento.' : m
 

@@ -60,7 +60,7 @@ export function WeightCard({ date }: { date?: string }) {
   const goalDiff = p ? round1(latest - p.targetKg) : 0
 
   return (
-    <section className="card flex flex-col p-4">
+    <section className="card flex flex-col p-4 lg:p-6">
       <div className="flex items-start justify-between">
         <span className="label flex items-center gap-1.5">
           <Scale size={12} /> Evolución de peso
@@ -74,7 +74,7 @@ export function WeightCard({ date }: { date?: string }) {
       </div>
 
       <div className="num mt-2 flex items-baseline gap-1">
-        <span className="text-[30px] font-bold leading-none">{latest.toFixed(1)}</span>
+        <span className="text-[30px] font-bold leading-none lg:text-[40px]">{latest.toFixed(1)}</span>
         <span className="text-[12px] text-white/45">kg</span>
       </div>
       {p && (
@@ -83,7 +83,7 @@ export function WeightCard({ date }: { date?: string }) {
         </p>
       )}
 
-      <div className="mt-2 min-h-[96px] flex-1">
+      <div className="mt-2 min-h-[96px] flex-1 lg:mt-4 lg:min-h-[150px]">
         {chart ? (
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible" role="img" aria-label="Gráfica de peso">
             <defs>

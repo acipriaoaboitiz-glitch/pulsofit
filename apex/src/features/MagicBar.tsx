@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Dumbbell, Droplets, Flame, Footprints, Loader2, Mic, Sparkles, Utensils, Wand2, X } from 'lucide-react'
 import { MealPicker } from './ProductSheet'
+import { PillSelect } from '../components/PillSelect'
 import { AI_TEXT_LIMIT, useStore } from '../lib/store'
 import { AiLimitError, aiQuickParse } from '../lib/ai'
 import { parseMagic } from '../lib/parser'
@@ -273,18 +274,9 @@ export function MagicBar({ className, suggestions, autoFocus }: { className?: st
                           </div>
                           <div className="num text-[12px] text-white/45">{d.sub}</div>
                           {it.kind === 'exercise' && !it.exerciseId && (
-                            <select
-                              aria-label="Músculo del ejercicio nuevo"
-                              value={muscles[i] ?? it.muscle}
-                              onChange={(e) => setMuscles((m) => ({ ...m, [i]: e.target.value as Muscle }))}
-                              className="mt-1.5 rounded-lg border border-line bg-raised px-2 py-1 text-[12px] text-white/80"
-                            >
-                              {MUSCLES.map((m) => (
-                                <option key={m} value={m}>
-                                  {m}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="mt-2">
+                              <PillSelect<Muscle> size="sm" label="Músculo del ejercicio nuevo" value={muscles[i] ?? it.muscle} onChange={(v) => setMuscles((m) => ({ ...m, [i]: v }))} options={MUSCLES.map((m) => ({ id: m, label: m }))} />
+                            </div>
                           )}
                         </div>
                         {it.kind === 'food' && (
