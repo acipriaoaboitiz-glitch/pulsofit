@@ -12,7 +12,7 @@ import { exerciseById, isBarbell } from '../lib/exercises'
 import { bestE1rm, isPr, newExercise, sessionVolume } from '../lib/workout'
 import { GYM_MET, INTENSITY_LABELS, epley, gymKcal, suggestIntensity } from '../lib/calc'
 import type { ActiveWorkout as Active, Intensity, SetLog } from '../lib/types'
-import { beep, cn, fmt, fmtClock, haptic, primeAudio, todayKey } from '../lib/utils'
+import { beep, cn, fmt, fmtClock, haptic, primeAudio, todayKey, uid } from '../lib/utils'
 
 const REST_PRESETS = [60, 90, 120, 180]
 
@@ -145,7 +145,7 @@ function SetRow({ index, set, barbell, canCopy, onChange, onCopy, onToggle, onPl
 }
 
 export function ActiveWorkout() {
-  const { state, setActive, addSession } = useStore()
+  const { state, setActive, addSession, saveRoutine } = useStore()
   const ui = useUI()
   const active = state.active
   const [now, setNow] = useState(Date.now())
@@ -426,7 +426,7 @@ export function ActiveWorkout() {
         onClose={() => setFinishing(false)}
         active={active}
         durationSec={elapsed}
-        onConfirm={(intensity) => {
+        onConfirm={(intensity, routineName) => {
           const done = active.exercises
             .map((e) => ({ exerciseId: e.exerciseId, restSec: e.restSec, sets: e.sets.filter((s) => s.done) }))
             .filter((e) => e.sets.length > 0)
@@ -435,6 +435,15 @@ export function ActiveWorkout() {
           const prs = done.flatMap((e) => e.sets.filter((s) => s.pr).map((s) => ({ exercise: exerciseById(e.exerciseId)?.name ?? e.exerciseId, e1rm: Math.round(epley(s.kg, s.reps)) })))
           const vol = sessionVolume(done)
           addSession({ date: todayKey(), routineName: active.routineName, startedAt: active.startedAt, durationSec, intensity, kcal, volume: vol, prCount: prs.length, exercises: done })
+          // optional: keep this session's exercises as one of YOUR routines
+          if (routineName.trim()) {
+            saveRoutine({
+              id: uid(),
+              name: routineName.trim(),
+              program: 'Mis rutinas',
+              exercises: done.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets.length, reps: Math.round(e.sets.reduce((a, s) => a + s.reps, 0) / e.sets.length), restSec: e.restSec ?? 90 })),
+            })
+          }
           haptic([30, 60, 30, 60, 100])
           setActive(null)
           setFinishing(false)
@@ -463,8 +472,9 @@ export function ActiveWorkout() {
   )
 }
 
-function FinishSheet({ open, onClose, active, durationSec, onConfirm }: { open: boolean; onClose: () => void; active: Active; durationSec: number; onConfirm: (i: Intensity) => void }) {
+function FinishSheet({ open, onClose, active, durationSec, onConfirm }: { open: boolean; onClose: () => void; active: Active; durationSec: number; onConfirm: (i: Intensity, routineName: string) => void }) {
   const { state } = useStore()
+  const [routineName, setRoutineName] = useState('')
   const weight = state.profile?.weightKg ?? 75
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
   const dur = Math.max(60, Math.round(durationSec))
@@ -513,7 +523,11 @@ function FinishSheet({ open, onClose, active, durationSec, onConfirm }: { open: 
               </div>
             </div>
           </div>
-          <button className="btn-violet w-full" onClick={() => onConfirm(intensity)}>
+          <label className="block">
+            <span className="label">Guardar como rutina (opcional)</span>
+            <input className="input mt-1.5" placeholder="Ej. Pecho y tríceps" value={routineName} onChange={(e) => setRoutineName(e.target.value)} />
+          </label>
+          <button className="btn-violet w-full" onClick={() => onConfirm(intensity, routineName)}>
             Guardar y sumar al balance del día
           </button>
         </div>

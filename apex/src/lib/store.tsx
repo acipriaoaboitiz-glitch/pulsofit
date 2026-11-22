@@ -19,7 +19,7 @@ import type {
   WorkoutSession,
 } from './types'
 import { computeTargets, waterGoal } from './metabolic'
-import { registerCustomExercises, seedRoutines } from './exercises'
+import { registerCustomExercises } from './exercises'
 import { addDays, todayKey, uid } from './utils'
 import { stepsKcal, stepsToKm } from './calc'
 
@@ -39,7 +39,7 @@ const initial = (): AppState => ({
   weights: [],
   saved: [],
   custom: [],
-  routines: seedRoutines(),
+  routines: [],
   sessions: [],
   ai: { day: todayKey(), photo: 0, text: 0 },
   active: null,
@@ -53,7 +53,14 @@ function load(): AppState {
     if (!raw) return initial()
     const parsed = JSON.parse(raw) as AppState
     if (parsed.v !== 1) return initial()
-    return { ...initial(), ...parsed }
+    const merged = { ...initial(), ...parsed }
+    // Older builds shipped predefined routines (Push/Pull/Legs…). There are none anymore: drop them, keep the user's own.
+    const seeded = merged.routines.filter((x) => x.id.startsWith('tpl-'))
+    if (seeded.length) {
+      merged.routines = merged.routines.filter((x) => !x.id.startsWith('tpl-'))
+      merged.tomb = [...merged.tomb, ...seeded.map((x) => ({ c: 'routines' as const, id: x.id }))]
+    }
+    return merged
   } catch {
     return initial()
   }

@@ -1,4 +1,4 @@
-import type { CustomExercise, Muscle, Routine, RoutineExercise } from './types'
+import type { CustomExercise, Muscle } from './types'
 
 export type { Muscle }
 
@@ -124,52 +124,3 @@ export const exerciseById = (id: string): Exercise | undefined => EXERCISES.find
 
 /** Only Olympic-bar lifts get the plate calculator (EZ bars excluded). */
 export const isBarbell = (id: string): boolean => exerciseById(id)?.equipment === 'Barra'
-
-const ex = (exerciseId: string, sets: number, reps: number, restSec = 90): RoutineExercise => ({ exerciseId, sets, reps, restSec })
-
-interface TemplateDay {
-  name: string
-  exercises: RoutineExercise[]
-}
-interface Template {
-  program: string
-  days: TemplateDay[]
-}
-
-export const TEMPLATES: Template[] = [
-  {
-    program: 'Push / Pull / Legs',
-    days: [
-      { name: 'Push', exercises: [ex('bench-press', 4, 8, 120), ex('incline-db', 3, 10), ex('ohp', 3, 8, 120), ex('lateral-raise', 3, 15, 60), ex('rope-pushdown', 3, 12, 60), ex('overhead-ext', 3, 12, 60)] },
-      { name: 'Pull', exercises: [ex('pullup', 4, 8, 120), ex('barbell-row', 4, 8, 120), ex('seated-row', 3, 10), ex('face-pull', 3, 15, 60), ex('barbell-curl', 3, 10, 60), ex('hammer-curl', 3, 12, 60)] },
-      { name: 'Legs', exercises: [ex('squat', 4, 6, 180), ex('rdl', 3, 8, 120), ex('leg-press', 3, 12), ex('leg-curl-lying', 3, 12, 60), ex('standing-calf', 4, 15, 60), ex('cable-crunch', 3, 15, 60)] },
-    ],
-  },
-  {
-    program: 'Torso / Pierna',
-    days: [
-      { name: 'Torso', exercises: [ex('bench-press', 4, 8, 120), ex('barbell-row', 4, 8, 120), ex('db-shoulder', 3, 10), ex('lat-pulldown', 3, 10), ex('db-curl', 3, 12, 60), ex('pushdown', 3, 12, 60)] },
-      { name: 'Pierna', exercises: [ex('squat', 4, 6, 180), ex('rdl', 3, 8, 120), ex('bulgarian', 3, 10), ex('leg-curl-seated', 3, 12, 60), ex('hip-thrust', 3, 10, 90), ex('seated-calf', 4, 15, 60)] },
-    ],
-  },
-  {
-    program: 'Full Body',
-    days: [{ name: 'Full Body', exercises: [ex('squat', 3, 8, 120), ex('bench-press', 3, 8, 120), ex('barbell-row', 3, 8, 120), ex('ohp', 3, 10), ex('rdl', 3, 10), ex('plank', 3, 45, 60)] }],
-  },
-]
-
-/** Routines available from the very first launch (editable & deletable). */
-export function seedRoutines(): Routine[] {
-  const now = Date.now()
-  return TEMPLATES.flatMap((t) =>
-    t.days.map(
-      (d): Routine => ({
-        id: `tpl-${t.program}-${d.name}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        u: now,
-        name: d.name,
-        program: t.program,
-        exercises: d.exercises.map((e) => ({ ...e })),
-      }),
-    ),
-  )
-}

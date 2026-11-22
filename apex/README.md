@@ -27,7 +27,7 @@ La foto con IA y «Mejorar con IA» usan modo simulado/local hasta que haya `GEM
    (60/90/120/180 s, círculo flotante, aviso sonoro + vibración).
 4. **Lo de siempre**: carruseles de tus ejercicios y comidas más repetidos.
 
-Gimnasio: +70 ejercicios (7 filtros musculares + propios), plantillas PPL / Torso-Pierna / Full Body, *ghost sets* (peso y reps de la última vez),
+Gimnasio: +70 ejercicios organizados por músculo (7 grupos + propios, con tu peso, repeticiones y kcal de cada uno), SIN rutinas predefinidas: creas las tuyas, *ghost sets* (peso y reps de la última vez),
 PR por **1RM estimado (Epley)** con confeti, calculadora de discos (barra de 20 kg) y mapa muscular de recuperación (48 h).
 Calorías de pesas: `0,0175 × MET × kg × minutos` con intensidad sugerida por tu volumen/ritmo.
 

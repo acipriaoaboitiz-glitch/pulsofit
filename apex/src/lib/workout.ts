@@ -103,3 +103,30 @@ export function muscleLoad(sessions: WorkoutSession[], active: ActiveWorkout | n
   if (active) apply(active.exercises, Date.now())
   return out
 }
+
+// ------------------------------------------------------------------ per-exercise history (Gym screen)
+export interface ExerciseEntry {
+  session: WorkoutSession
+  /** completed sets of this exercise in that session */
+  sets: SetLog[]
+  /** share of the session's kcal attributable to this exercise (by completed sets) */
+  kcal: number
+}
+
+/** kcal of a session split across its exercises proportionally to completed sets. */
+export function exerciseKcalShare(session: WorkoutSession, exerciseId: string): number {
+  const total = session.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
+  if (total === 0) return 0
+  const mine = session.exercises.filter((e) => e.exerciseId === exerciseId).reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
+  return Math.round((session.kcal * mine) / total)
+}
+
+/** Every time the exercise was done, newest first. */
+export function exerciseHistory(sessions: WorkoutSession[], exerciseId: string): ExerciseEntry[] {
+  const out: ExerciseEntry[] = []
+  for (const s of [...sessions].sort((a, b) => b.startedAt - a.startedAt)) {
+    const sets = s.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter((x) => x.done))
+    if (sets.length) out.push({ session: s, sets, kcal: exerciseKcalShare(s, exerciseId) })
+  }
+  return out
+}

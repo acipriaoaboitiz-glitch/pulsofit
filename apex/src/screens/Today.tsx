@@ -33,8 +33,7 @@ export function Today() {
 
   const startNext = () => {
     haptic(20)
-    if (next) setActive(buildActive(next, state.sessions))
-    else ui.open('start')
+    setActive(buildActive(next, state.sessions))
   }
 
   return (
@@ -171,7 +170,7 @@ export function Today() {
               <Play size={20} fill="currentColor" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] text-white/50">Te toca</div>
+              <div className="text-[13px] text-white/50">{next ? 'Te toca' : 'Empieza ahora'}</div>
               <div className="truncate text-lg font-extrabold">{next?.name ?? 'Sesión libre'}</div>
               {next && (
                 <div className="truncate text-[12px] text-white/45">

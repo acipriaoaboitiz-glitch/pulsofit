@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Dumbbell, Flame, Pencil, Play, Plus, Trash2, Trophy } from 'lucide-react'
-import { PageHeader, Empty } from '../components/bits'
+import { Check, Dumbbell, Flame, Pencil, Play, Plus, Trash2, Trophy } from 'lucide-react'
+import { PageHeader } from '../components/bits'
 import { Sheet } from '../components/Sheet'
 import { RoutineEditor } from '../features/RoutineEditor'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
-import { exerciseById } from '../lib/exercises'
-import { buildActive, frequentExercises, muscleLoad, newExercise } from '../lib/workout'
+import { GROUPS, allExercises, exerciseById, groupOf } from '../lib/exercises'
+import type { Group } from '../lib/exercises'
+import { bestE1rm, buildActive, exerciseHistory, exerciseKcalShare, muscleLoad, newExercise } from '../lib/workout'
 import { MuscleMap } from '../components/MuscleMap'
 import { MagicBar } from '../features/MagicBar'
-import type { Routine } from '../lib/types'
-import { addDays, fmt, fmtClock, haptic, keyToDate, todayKey } from '../lib/utils'
+import type { Routine, SetLog } from '../lib/types'
+import { fmt, fmtClock, haptic, keyToDate, todayKey } from '../lib/utils'
 
 function RoutineCard({ r, onEdit }: { r: Routine; onEdit: () => void }) {
   const { state, setActive, removeRoutine } = useStore()
@@ -61,44 +62,107 @@ function RoutineCard({ r, onEdit }: { r: Routine; onEdit: () => void }) {
   )
 }
 
+const GROUP_HINT: Record<Group, string> = {
+  Pecho: 'Pectoral mayor y menor',
+  Espalda: 'Dorsales, trapecio y lumbar',
+  Hombros: 'Deltoides y trapecio',
+  Bíceps: 'Flexores del codo',
+  Tríceps: 'Extensores del codo',
+  Pierna: 'Cuádriceps, isquios, glúteos y gemelos',
+  Abdomen: 'Core y oblicuos',
+}
+
+const daysAgo = (date: string): string => {
+  const d = Math.round((keyToDate(todayKey()).getTime() - keyToDate(date).getTime()) / 86400000)
+  return d <= 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`
+}
+
+/** "80kg × 8" chips for the sets of one session */
+function SetChips({ sets }: { sets: SetLog[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {sets.slice(0, 8).map((s, i) => (
+        <span key={i} className={`num rounded-lg px-2 py-1 text-[12px] font-bold ${s.pr ? 'bg-neon text-white' : 'bg-white/[0.06] text-white/80'}`}>
+          {s.kg > 0 ? `${s.kg}kg` : 'PC'} × {s.reps}
+        </span>
+      ))}
+      {sets.length > 8 && <span className="num px-1 py-1 text-[12px] text-white/40">+{sets.length - 8}</span>}
+    </div>
+  )
+}
+
 export function Gym() {
   const { state, setActive, removeSession } = useStore()
   const [editing, setEditing] = useState<Routine | 'new' | null>(null)
-
-  const programs = useMemo(() => {
-    const m = new Map<string, Routine[]>()
-    for (const r of state.routines) m.set(r.program, [...(m.get(r.program) ?? []), r])
-    return [...m.entries()]
-  }, [state.routines])
-
-  const week = useMemo(() => {
-    const from = addDays(todayKey(), -6)
-    const ss = state.sessions.filter((s) => s.date >= from)
-    return {
-      n: ss.length,
-      volume: ss.reduce((a, s) => a + s.volume, 0),
-      prs: ss.reduce((a, s) => a + s.prCount, 0),
-    }
-  }, [state.sessions])
-
-  const history = [...state.sessions].sort((a, b) => b.startedAt - a.startedAt).slice(0, 12)
-  const load = useMemo(() => muscleLoad(state.sessions, state.active), [state.sessions, state.active])
-  const frequent = useMemo(() => frequentExercises(state.sessions, 8).filter((id) => exerciseById(id)), [state.sessions])
+  const [group, setGroup] = useState<Group>('Pecho')
+  const [open, setOpen] = useState<string | null>(null)
+  const [justAdded, setJustAdded] = useState<string | null>(null)
   const [now] = useState(() => Date.now())
 
-  /** "Lo de siempre": one tap starts (or extends) a workout with that exercise and its ghost sets. */
-  const quickAdd = (id: string) => {
+  // every exercise of the muscle group (catalog + your own) with its history
+  const rows = useMemo(() => {
+    const list = allExercises()
+      .filter((e) => groupOf(e.muscle) === group)
+      .map((e) => ({ e, hist: exerciseHistory(state.sessions, e.id) }))
+    return list.sort((a, b) => {
+      const ta = a.hist[0]?.session.startedAt ?? 0
+      const tb = b.hist[0]?.session.startedAt ?? 0
+      return tb - ta || a.e.name.localeCompare(b.e.name)
+    })
+  }, [group, state.sessions, state.custom])
+
+  const stats = useMemo(() => {
+    const since7 = now - 7 * 86400000
+    const since30 = now - 30 * 86400000
+    let sets7 = 0
+    let volume30 = 0
+    let kcal30 = 0
+    for (const s of state.sessions) {
+      if (s.startedAt < since30) continue
+      for (const e of s.exercises) {
+        const def = exerciseById(e.exerciseId)
+        if (!def || groupOf(def.muscle) !== group) continue
+        const done = e.sets.filter((x) => x.done)
+        if (s.startedAt >= since7) sets7 += done.length
+        volume30 += done.reduce((a, x) => a + x.kg * x.reps, 0)
+        kcal30 += exerciseKcalShare(s, e.exerciseId) * (done.length / Math.max(1, s.exercises.filter((x) => x.exerciseId === e.exerciseId).reduce((n, x) => n + x.sets.filter((y) => y.done).length, 0)))
+      }
+    }
+    return { sets7, volume30: Math.round(volume30), kcal30: Math.round(kcal30) }
+  }, [state.sessions, group, now])
+
+  const counts7 = useMemo(() => {
+    const since7 = now - 7 * 86400000
+    const out = {} as Record<Group, number>
+    for (const g of GROUPS) out[g] = 0
+    for (const s of state.sessions) {
+      if (s.startedAt < since7) continue
+      for (const e of s.exercises) {
+        const def = exerciseById(e.exerciseId)
+        if (def) out[groupOf(def.muscle)] += e.sets.filter((x) => x.done).length
+      }
+    }
+    return out
+  }, [state.sessions, now])
+
+  const load = useMemo(() => muscleLoad(state.sessions, state.active), [state.sessions, state.active])
+  const history = [...state.sessions].sort((a, b) => b.startedAt - a.startedAt).slice(0, 12)
+
+  /** One tap: adds the exercise (with ghost sets from the last time) to the running workout, or starts one. */
+  const addToWorkout = (id: string) => {
     haptic(15)
     const ex = newExercise(state.sessions, id)
     if (state.active) setActive({ ...state.active, exercises: [...state.active.exercises, ex] })
     else setActive({ ...buildActive(null, state.sessions), exercises: [ex] })
+    setJustAdded(id)
+    window.setTimeout(() => setJustAdded(null), 1200)
   }
 
   return (
     <div className="px-4 pb-8 lg:px-0">
       <PageHeader
         title="Gimnasio"
-        sub="Rutinas ilimitadas · gratis"
+        sub="Por músculos · tus rutinas, tú las creas"
         right={
           <button
             className="btn-ghost !rounded-2xl !px-3.5 !py-2.5 text-[13px]"
@@ -115,62 +179,158 @@ export function Gym() {
       <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-5 lg:space-y-0">
         <MagicBar className="lg:col-span-12" />
 
-        {frequent.length > 0 && (
-          <section className="lg:col-span-12">
-            <h2 className="label mb-2 px-1">Lo de siempre</h2>
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-              {frequent.map((id) => (
-                <button key={id} onClick={() => quickAdd(id)} className="chip max-w-[220px] shrink-0 !rounded-2xl !py-2.5 active:!bg-neon/20">
-                  <Plus size={13} strokeWidth={3} className="text-neon" />
-                  <span className="truncate">{exerciseById(id)?.name}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="card p-5 lg:sticky lg:top-6 lg:col-span-5 lg:row-span-6 lg:self-start">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="label">Recuperación muscular · 48 h</p>
-            <span className="flex items-center gap-2 text-[10px] font-semibold text-white/40">
-              <span className="h-2 w-2 rounded-full bg-neon" /> trabajado
-              <span className="h-2 w-2 rounded-full bg-emerald/60" /> fresco
-            </span>
+        {/* ---- muscles → all their exercises ---- */}
+        <div className="space-y-4 lg:col-span-7">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0" role="tablist" aria-label="Grupos musculares">
+            {GROUPS.map((g) => (
+              <button
+                key={g}
+                role="tab"
+                aria-selected={group === g}
+                onClick={() => {
+                  haptic(6)
+                  setGroup(g)
+                  setOpen(null)
+                }}
+                className={`chip !px-4 !py-2.5 ${group === g ? 'border-neon/60 bg-neon/15 !text-violet-200' : ''}`}
+              >
+                {g}
+                {counts7[g] > 0 && <span className="num rounded-full bg-white/10 px-1.5 text-[10px] text-white/60">{counts7[g]}</span>}
+              </button>
+            ))}
           </div>
-          <MuscleMap load={load} now={now} />
-        </section>
 
-        <section className="grid grid-cols-3 gap-2.5 lg:col-span-7">
-          {[
-            { l: 'Sesiones 7d', v: week.n, c: 'text-white' },
-            { l: 'Volumen kg', v: fmt(week.volume), c: 'text-emerald' },
-            { l: 'Récords', v: week.prs, c: 'text-neon' },
-          ].map((s) => (
-            <div key={s.l} className="card px-3 py-3.5 text-center">
-              <div className={`num text-[22px] font-bold leading-none ${s.c}`}>{s.v}</div>
-              <div className="mt-1.5 text-[10.5px] font-bold uppercase tracking-wide text-white/40">{s.l}</div>
+          <section className="card p-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-[20px] font-extrabold tracking-tight">{group}</h2>
+              <span className="text-[12px] text-white/45">{GROUP_HINT[group]}</span>
             </div>
-          ))}
-        </section>
-
-        {programs.map(([program, list]) => (
-          <section key={program} className="lg:col-span-7">
-            <h2 className="label mb-2 px-1">{program}</h2>
-            <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
-              {list.map((r) => (
-                <RoutineCard key={r.id} r={r} onEdit={() => setEditing(r)} />
+            <div className="mt-4 grid grid-cols-3 gap-2.5">
+              {[
+                { l: 'Series 7 días', v: stats.sets7, c: 'text-white' },
+                { l: 'Volumen 30 d (kg)', v: fmt(stats.volume30), c: 'text-neon' },
+                { l: 'kcal 30 días', v: fmt(stats.kcal30), c: 'text-fire' },
+              ].map((s) => (
+                <div key={s.l} className="card-raised px-2.5 py-3 text-center">
+                  <div className={`num text-[20px] font-bold leading-none ${s.c}`}>{s.v}</div>
+                  <div className="mt-1.5 text-[10px] font-bold uppercase tracking-wide text-white/40">{s.l}</div>
+                </div>
               ))}
             </div>
           </section>
-        ))}
 
-        {state.routines.length === 0 && (
-          <Empty icon={<Dumbbell size={24} />} text="No tienes rutinas. Crea la tuya con la biblioteca de +70 ejercicios." />
-        )}
+          <section>
+            <h3 className="label mb-2 px-1">
+              {rows.length} ejercicios · toca uno para ver tu historial, <span className="text-neon">+</span> para añadirlo al entreno
+            </h3>
+            <ul className="space-y-2.5">
+              {rows.map(({ e, hist }) => {
+                const last = hist[0]
+                const best = bestE1rm(state.sessions, e.id)
+                const isOpen = open === e.id
+                return (
+                  <li key={e.id} className="card-raised overflow-hidden">
+                    <div className="flex items-stretch">
+                      <button onClick={() => setOpen(isOpen ? null : e.id)} aria-expanded={isOpen} className="min-w-0 flex-1 p-3.5 text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-[15px] font-bold">{e.name}</span>
+                          {e.custom && <span className="rounded bg-neon/20 px-1 text-[10px] font-bold text-violet-200">PROPIO</span>}
+                        </div>
+                        <div className="text-[12px] text-white/45">
+                          {e.muscle} · {e.equipment}
+                        </div>
+                        {last ? (
+                          <div className="mt-2.5 space-y-2">
+                            <SetChips sets={last.sets} />
+                            <div className="num flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-white/45">
+                              <span>{daysAgo(last.session.date)}</span>
+                              {best !== null && (
+                                <span>
+                                  1RM est. <b className="text-violet-300">{Math.round(best)} kg</b>
+                                </span>
+                              )}
+                              <span className="flex items-center gap-0.5 text-fire">
+                                <Flame size={11} />≈ {fmt(last.kcal)} kcal
+                              </span>
+                              <span>{hist.length} {hist.length === 1 ? 'sesión' : 'sesiones'}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-[12px] text-white/35">Aún sin registros: tu peso y repeticiones aparecerán aquí.</p>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => addToWorkout(e.id)}
+                        aria-label={`Añadir ${e.name} al entreno`}
+                        className={`m-3 grid h-11 w-11 shrink-0 place-items-center self-center rounded-2xl transition active:scale-90 ${justAdded === e.id ? 'bg-emerald text-[#04130d]' : 'bg-neon text-white shadow-[0_6px_20px_-6px_rgba(139,92,246,0.8)]'}`}
+                      >
+                        {justAdded === e.id ? <Check size={20} strokeWidth={3} /> : <Plus size={22} strokeWidth={3} />}
+                      </button>
+                    </div>
 
-        <button className="btn-ghost w-full lg:col-span-7" onClick={() => setEditing('new')}>
-          <Plus size={18} /> Nueva rutina
-        </button>
+                    {isOpen && (
+                      <div className="border-t border-line bg-black/20 px-3.5 py-3">
+                        {hist.length === 0 ? (
+                          <p className="text-[12.5px] text-white/45">Cuando lo hagas, aquí verás cada sesión con sus pesos y repeticiones y las calorías que te ha costado.</p>
+                        ) : (
+                          <ul className="space-y-3">
+                            {hist.slice(0, 6).map((h) => (
+                              <li key={h.session.id}>
+                                <div className="num mb-1.5 flex items-center justify-between text-[11.5px] text-white/45">
+                                  <span>
+                                    {keyToDate(h.session.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · {h.session.routineName}
+                                  </span>
+                                  <span className="flex items-center gap-0.5 text-fire">
+                                    <Flame size={11} />≈ {fmt(h.kcal)} kcal
+                                  </span>
+                                </div>
+                                <SetChips sets={h.sets} />
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        </div>
+
+        {/* ---- your routines (none by default) + recovery map ---- */}
+        <div className="space-y-4 lg:sticky lg:top-6 lg:col-span-5">
+          <section className="card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="label">Mis rutinas</h2>
+              <button className="btn-ghost !rounded-xl !px-3 !py-2 text-[13px]" onClick={() => setEditing('new')}>
+                <Plus size={15} /> Nueva rutina
+              </button>
+            </div>
+            {state.routines.length === 0 ? (
+              <p className="rounded-2xl bg-white/[0.03] px-4 py-5 text-center text-[13px] leading-snug text-white/45">
+                No hay rutinas hechas. Elige ejercicios de cada músculo y arma las tuyas cuando quieras, o entrena en sesión libre.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {state.routines.map((r) => (
+                  <RoutineCard key={r.id} r={r} onEdit={() => setEditing(r)} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="label">Recuperación · 48 h</p>
+              <span className="flex items-center gap-2 text-[10px] font-semibold text-white/40">
+                <span className="h-2 w-2 rounded-full bg-neon" /> trabajado
+                <span className="h-2 w-2 rounded-full bg-emerald/60" /> fresco
+              </span>
+            </div>
+            <MuscleMap load={load} now={now} />
+          </section>
+        </div>
 
         {history.length > 0 && (
           <section className="lg:col-span-12">
@@ -184,8 +344,7 @@ export function Gym() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-bold">{s.routineName}</div>
                     <div className="num text-[12px] text-white/45">
-                      {keyToDate(s.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · {fmtClock(s.durationSec)} ·{' '}
-                      {fmt(s.volume)} kg
+                      {keyToDate(s.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · {fmtClock(s.durationSec)} · {fmt(s.volume)} kg
                     </div>
                   </div>
                   {s.prCount > 0 && (

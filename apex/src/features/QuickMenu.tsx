@@ -25,7 +25,21 @@ const ITEMS: Item[] = [
 const ANGLES = [-158, -124, -90, -56, -22]
 const RADIUS = 140
 
+/** true on desktop (≥1024 px), where the + menu becomes a vertical popover next to the side navigation */
+function useDesktop(): boolean {
+  const q = '(min-width: 1024px)'
+  const [d, setD] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
+  useEffect(() => {
+    const m = window.matchMedia(q)
+    const on = (): void => setD(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return d
+}
+
 export function QuickMenu() {
+  const desktop = useDesktop()
   const { sheet, open, close } = useUI()
   const { addWater, aiRemaining } = useStore()
   const isOpen = sheet?.name === 'quick'
@@ -45,6 +59,41 @@ export function QuickMenu() {
       return
     }
     open(id === 'exercise' ? 'addExercise' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo'))
+  }
+
+  if (desktop) {
+    return (
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div key="backdrop" className="fixed inset-0 z-[30] bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />
+            <motion.div
+              key="list"
+              role="menu"
+              aria-label="Acciones rápidas"
+              initial={{ opacity: 0, x: -10, scale: 0.97 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+              className="fixed left-[268px] top-[84px] z-[45] w-[270px] rounded-2xl border border-line bg-[#0f131c] p-1.5 shadow-2xl"
+            >
+              {ITEMS.map((it) => {
+                const Icon = it.id === 'water' && watered ? Check : it.icon
+                return (
+                  <button key={it.id} role="menuitem" onClick={() => run(it.id)} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-white/[0.06]">
+                    <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: it.color, color: it.fg }}>
+                      <Icon size={20} strokeWidth={2.4} />
+                    </span>
+                    <span className="flex-1 text-[14px] font-bold">{it.id === 'water' && watered ? '¡Añadido!' : it.label}</span>
+                    {it.id === 'photo' && <span className="num rounded-full bg-neon/20 px-2 py-0.5 text-[11px] font-bold text-violet-200">{aiRemaining}/3</span>}
+                  </button>
+                )
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    )
   }
 
   return (
