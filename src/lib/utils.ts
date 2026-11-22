@@ -77,6 +77,13 @@ export function fmtClock(totalSec: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
+/** 00:34:12 */
+export function fmtHms(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec))
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(Math.floor(s / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`
+}
+
 export function haptic(pattern: number | number[] = 12): void {
   try {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(pattern)

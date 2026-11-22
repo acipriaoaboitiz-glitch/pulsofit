@@ -3,7 +3,7 @@ export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'ver
 export type Goal = 'lose' | 'recomp' | 'maintain' | 'gain'
 export type Meal = 'desayuno' | 'comida' | 'cena' | 'snack'
 
-/** Every synced record carries a client UUID and an update timestamp (ms). */
+/** Every synced record carries a client id and an update timestamp (ms). */
 export interface Rec {
   id: string
   u: number
@@ -40,7 +40,7 @@ export interface FoodLog extends Rec {
   protein: number
   carbs: number
   fat: number
-  source: 'barcode' | 'ai' | 'search' | 'custom'
+  source: 'barcode' | 'ai' | 'search' | 'custom' | 'text'
   image?: string
 }
 
@@ -49,22 +49,19 @@ export interface WaterLog extends Rec {
   ml: number
 }
 
-export type CardioKind =
-  | 'walk_easy'
-  | 'walk_fast'
-  | 'run_easy'
-  | 'run_hard'
-  | 'bike'
-  | 'elliptical'
-  | 'swim'
-  | 'sport'
-
-export interface ActivityLog extends Rec {
+/** One row per day. `health` = read from Health Connect / HealthKit, `manual` = typed or quick buttons. */
+export interface DailySteps extends Rec {
   date: string
-  type: 'steps' | 'cardio'
-  steps?: number
-  cardio?: CardioKind
-  minutes?: number
+  steps: number
+  source: 'manual' | 'health'
+}
+
+export type CardioKind = 'walk' | 'run' | 'bike' | 'elliptical' | 'swim' | 'sport'
+
+export interface CardioLog extends Rec {
+  date: string
+  cardio: CardioKind
+  minutes: number
   kcal: number
 }
 
@@ -83,11 +80,31 @@ export interface SavedFood extends Rec {
   servingG: number
 }
 
+export type Muscle =
+  | 'Pecho'
+  | 'Espalda'
+  | 'Hombros'
+  | 'Bíceps'
+  | 'Tríceps'
+  | 'Cuádriceps'
+  | 'Isquios'
+  | 'Glúteos'
+  | 'Gemelos'
+  | 'Core'
+
+export interface CustomExercise extends Rec {
+  name: string
+  muscle: Muscle
+  equipment: string
+}
+
 export interface RoutineExercise {
   exerciseId: string
   sets: number
   reps: number
   restSec: number
+  /** extra, optional work (shown with a BONUS badge) */
+  bonus?: boolean
 }
 
 export interface Routine extends Rec {
@@ -100,13 +117,15 @@ export interface SetLog {
   kg: number
   reps: number
   done: boolean
-  pr?: 'peso' | 'volumen'
+  /** new estimated 1RM record when the set was completed */
+  pr?: boolean
 }
 
 export interface SessionExercise {
   exerciseId: string
   sets: SetLog[]
   restSec?: number
+  bonus?: boolean
 }
 
 export type Intensity = 'light' | 'moderate' | 'high'
@@ -137,12 +156,21 @@ export interface WorkoutSummary {
   kcal: number
   volume: number
   sets: number
-  prs: { exercise: string; kind: 'peso' | 'volumen' }[]
+  prs: { exercise: string; e1rm: number }[]
 }
 
+/** Daily AI usage: photo scans are capped at 3/day, text parsing has its own generous cap. */
 export interface AiUsage {
   day: string
-  count: number
+  photo: number
+  text: number
+}
+
+export type Collection = 'food' | 'water' | 'steps' | 'cardio' | 'weights' | 'saved' | 'routines' | 'sessions' | 'custom'
+
+export interface Tomb {
+  c: Collection
+  id: string
 }
 
 export interface AppState {
@@ -150,23 +178,19 @@ export interface AppState {
   profile: Profile | null
   food: FoodLog[]
   water: WaterLog[]
-  activity: ActivityLog[]
+  steps: DailySteps[]
+  cardio: CardioLog[]
   weights: WeightLog[]
   saved: SavedFood[]
+  custom: CustomExercise[]
   routines: Routine[]
   sessions: WorkoutSession[]
   ai: AiUsage
   active: ActiveWorkout | null
-  /** ms timestamp of the last successful cloud push/pull reconciliation */
+  /** ms timestamp of the last successful cloud reconciliation */
   lastSync: number
   /** local deletions still to be propagated to the cloud */
   tomb: Tomb[]
-}
-
-export type Collection = 'food' | 'water' | 'activity' | 'weights' | 'saved' | 'routines' | 'sessions'
-export interface Tomb {
-  c: Collection
-  id: string
 }
 
 export interface Macros {
@@ -183,6 +207,8 @@ export interface Per100 {
   fat: number
 }
 
+export type StoreId = 'mercadona' | 'lidl' | 'aldi' | 'eroski'
+
 export interface FoodProduct {
   id: string
   name: string
@@ -192,5 +218,7 @@ export interface FoodProduct {
   per100: Per100
   servingG?: number
   servingLabel?: string
+  /** Spanish chain that sells it (detected from Open Food Facts) */
+  store?: StoreId
   source: FoodLog['source']
 }

@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, Droplets, Flame, Sparkles } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { ACTIVITY_LABELS, GOAL_LABELS, computeTargets } from '../lib/metabolic'
-import type { ActivityLevel, Goal, Profile, Sex } from '../lib/types'
+import type { ActivityLevel, Goal, Profile, Sex, Targets } from '../lib/types'
 import { cn, fmt, haptic, todayKey } from '../lib/utils'
 import { Segmented } from '../components/bits'
+import { Ring, SpringNumber } from '../components/Ring'
 
 type Draft = Omit<Profile, 'u'>
 
@@ -55,9 +56,57 @@ function NumField({
   )
 }
 
+/** "Tu plan está listo": the ring draws itself and the numbers count up before entering the app. */
+function PlanReveal({ plan, onDone }: { plan: Targets; onDone: () => void }) {
+  const [go, setGo] = useState(false)
+  useEffect(() => {
+    const a = window.setTimeout(() => setGo(true), 350)
+    const b = window.setTimeout(onDone, 3400)
+    return () => {
+      window.clearTimeout(a)
+      window.clearTimeout(b)
+    }
+  }, [onDone])
+
+  return (
+    <motion.div className="fixed inset-0 z-[9000] flex flex-col items-center justify-center bg-[#05070B]/95 px-6 text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
+      <motion.p className="label mb-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        Calculando tu plan
+      </motion.p>
+      <Ring size={230} stroke={18} value={go ? 1 : 0} gradient={['#10B981', '#06B6D4']}>
+        <SpringNumber value={go ? plan.kcal : 0} className="num text-[48px] font-bold leading-none" />
+        <span className="label mt-1.5">kcal al día</span>
+      </Ring>
+      <div className="mt-8 grid w-full max-w-[340px] grid-cols-3 gap-2.5">
+        {[
+          { l: 'Proteína', v: plan.protein, c: '#10B981' },
+          { l: 'Carbos', v: plan.carbs, c: '#06B6D4' },
+          { l: 'Grasas', v: plan.fat, c: '#8B5CF6' },
+        ].map((m, i) => (
+          <motion.div key={m.l} className="card-raised py-3" initial={{ opacity: 0, y: 16 }} animate={{ opacity: go ? 1 : 0, y: go ? 0 : 16 }} transition={{ delay: 0.9 + i * 0.15, type: 'spring', damping: 24, stiffness: 300 }}>
+            <div className="num text-[22px] font-bold" style={{ color: m.c }}>
+              <SpringNumber value={go ? m.v : 0} />
+              <span className="text-[11px] text-white/40">g</span>
+            </div>
+            <div className="label !text-[9px]">{m.l}</div>
+          </motion.div>
+        ))}
+      </div>
+      <motion.p className="mt-7 text-[15px] font-bold text-white/80" initial={{ opacity: 0 }} animate={{ opacity: go ? 1 : 0 }} transition={{ delay: 1.8 }}>
+        Tu plan está listo ✦
+      </motion.p>
+      <motion.button className="btn-primary mt-5 w-full max-w-[340px]" initial={{ opacity: 0 }} animate={{ opacity: go ? 1 : 0 }} transition={{ delay: 2.1 }} onClick={onDone}>
+        Entrar
+      </motion.button>
+    </motion.div>
+  )
+}
+
 export function Onboarding() {
   const { saveProfile, addWeight } = useStore()
   const [step, setStep] = useState(0)
+  const [reveal, setReveal] = useState(false)
+  const saved = useRef(false)
   const [dir, setDir] = useState(1)
   const [d, setD] = useState<Draft>({
     sex: 'male',
@@ -78,18 +127,43 @@ export function Onboarding() {
     setStep(n)
   }
 
-  const finish = () => {
-    haptic([20, 40, 20])
+  const commit = () => {
+    if (saved.current) return
+    saved.current = true
     saveProfile(d)
     addWeight(d.weightKg, todayKey())
+  }
+  const finish = () => {
+    haptic([20, 40, 20])
+    setReveal(true)
   }
 
   const valid = d.age >= 14 && d.heightCm >= 120 && d.weightKg >= 30 && d.targetKg >= 30
 
   return (
-    <div className="page-bg flex min-h-full flex-col px-5 pb-[calc(24px+var(--safe-bottom))] pt-[calc(24px+var(--safe-top))]">
-      <div className="mb-8 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+    <div className="page-bg min-h-full lg:grid lg:grid-cols-2">
+      {/* desktop: brand panel next to the form */}
+      <aside className="relative hidden overflow-hidden border-r border-white/[0.06] lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[900px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.22), transparent 62%)' }} />
+        <svg viewBox="0 0 512 512" width="150" height="150" aria-hidden className="relative" style={{ filter: 'drop-shadow(0 0 30px rgba(16,185,129,0.7))' }}>
+          <path d="M256 38 L442 108 V262 C442 372 362 452 256 484 C150 452 70 372 70 262 V108 Z" fill="#10B981" />
+          <path d="M256 70 L412 128 V260 C412 352 346 420 256 448 C166 420 100 352 100 260 V128 Z" fill="#06130F" />
+          <polyline points="124,262 198,262 234,176 290,354 324,262 388,262" fill="none" stroke="#6EE7B7" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <h2 className="relative mt-8 pl-[0.22em] text-[44px] font-extrabold leading-none tracking-[0.22em]">PULSO</h2>
+        <p className="relative mt-4 max-w-[340px] text-center text-[15px] leading-snug text-white/55">Tu entreno, tu nutrición y tus pasos en un solo sitio, en el móvil y en el ordenador.</p>
+        <ul className="relative mt-8 space-y-2.5 text-[14px] font-semibold text-white/70">
+          {['Rutina personal de lunes a viernes', 'Escáner de Mercadona, Lidl, Aldi y Eroski', 'Calorías por ejercicio y por comida'].map((t) => (
+            <li key={t} className="flex items-center gap-2.5">
+              <Check size={16} className="text-emerald" strokeWidth={3} /> {t}
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+    <div className="mx-auto flex min-h-full w-full max-w-[640px] flex-col px-5 pb-[calc(24px+var(--safe-bottom))] pt-[calc(24px+var(--safe-top))] lg:max-w-[560px] lg:justify-center lg:px-10">
+      <div className="mb-8 flex items-center justify-between lg:justify-end">
+        <div className="flex items-center gap-2.5 lg:hidden">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald text-[#04130d]">
             <Sparkles size={20} strokeWidth={2.8} />
           </div>
@@ -208,7 +282,7 @@ export function Onboarding() {
                   <div className="grid grid-cols-3 gap-2 text-center">
                     {[
                       { l: 'Proteína', v: preview.protein, c: '#10B981' },
-                      { l: 'Carbos', v: preview.carbs, c: '#F59E0B' },
+                      { l: 'Carbos', v: preview.carbs, c: '#F97316' },
                       { l: 'Grasas', v: preview.fat, c: '#8B5CF6' },
                     ].map((m) => (
                       <div key={m.l} className="card-raised py-3">
@@ -247,6 +321,9 @@ export function Onboarding() {
           </button>
         )}
       </div>
+
+      <AnimatePresence>{reveal && <PlanReveal plan={preview} onDone={commit} />}</AnimatePresence>
+    </div>
     </div>
   )
 }

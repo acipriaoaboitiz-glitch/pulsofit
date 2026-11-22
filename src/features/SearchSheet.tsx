@@ -6,7 +6,8 @@ import { NutriBadge } from './ProductSheet'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
 import { savedToProduct, searchFoods } from '../lib/off'
-import type { FoodProduct } from '../lib/types'
+import { STORES, matchStaples, storeDef } from '../lib/supermarket'
+import type { FoodProduct, StoreId } from '../lib/types'
 import { cn, haptic } from '../lib/utils'
 
 function Row({ p, onClick, onDelete }: { p: FoodProduct; onClick: () => void; onDelete?: () => void }) {
@@ -20,7 +21,11 @@ function Row({ p, onClick, onDelete }: { p: FoodProduct; onClick: () => void; on
         )}
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-bold">{p.name}</div>
-          <div className="truncate text-[12px] text-white/45">{p.brand ?? 'Genérico'}</div>
+          <div className="flex items-center gap-1.5 truncate text-[12px] text-white/45">
+            {p.store && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: storeDef(p.store).color }} />}
+            <span className="truncate">{p.brand ?? 'Genérico'}</span>
+            {p.store && <span className="shrink-0 font-semibold" style={{ color: storeDef(p.store).color }}>{storeDef(p.store).label}</span>}
+          </div>
         </div>
         <NutriBadge grade={p.nutriScore} />
         <div className="num shrink-0 text-right">
@@ -45,10 +50,11 @@ function SearchBody() {
   const [results, setResults] = useState<FoodProduct[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [store, setStore] = useState<StoreId | null>(null)
 
   useEffect(() => {
     const term = q.trim()
-    if (term.length < 2) {
+    if (term.length < 2 && !store) {
       setResults([])
       setError('')
       setLoading(false)
@@ -57,7 +63,7 @@ function SearchBody() {
     const ctl = new AbortController()
     setLoading(true)
     const t = window.setTimeout(() => {
-      searchFoods(term, ctl.signal)
+      searchFoods(term, ctl.signal, store)
         .then((r) => {
           setResults(r)
           setError('')
@@ -73,7 +79,9 @@ function SearchBody() {
       window.clearTimeout(t)
       ctl.abort()
     }
-  }, [q])
+  }, [q, store])
+
+  const staples = useMemo(() => (q.trim().length >= 2 || store ? matchStaples(q, store) : []), [q, store])
 
   const recents = useMemo(() => {
     const seen = new Set<string>()
@@ -137,11 +145,28 @@ function SearchBody() {
             {loading && <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-emerald" />}
           </div>
 
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5" role="tablist" aria-label="Supermercado">
+            <button role="tab" aria-selected={store === null} className={cn('chip', store === null && 'chip-on')} onClick={() => setStore(null)}>
+              Todos
+            </button>
+            {STORES.map((s) => (
+              <button key={s.id} role="tab" aria-selected={store === s.id} className={cn('chip shrink-0', store === s.id && 'chip-on')} onClick={() => setStore(store === s.id ? null : s.id)}>
+                <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                {s.label}
+              </button>
+            ))}
+          </div>
+
           {error && <p className="text-center text-[13px] text-fire">{error}</p>}
 
-          {q.trim().length >= 2 ? (
-            results.length > 0 ? (
+          {q.trim().length >= 2 || store ? (
+            results.length > 0 || staples.length > 0 ? (
               <div className="-mx-2.5">
+                {staples.length > 0 && <p className="label mb-1 px-2.5">Básicos de súper</p>}
+                {staples.map((p) => (
+                  <Row key={p.id} p={p} onClick={() => pick(p)} />
+                ))}
+                {staples.length > 0 && results.length > 0 && <p className="label mb-1 mt-3 px-2.5">Open Food Facts · España</p>}
                 {results.map((p) => (
                   <Row key={p.id} p={p} onClick={() => pick(p)} />
                 ))}
@@ -160,7 +185,7 @@ function SearchBody() {
               </div>
             </div>
           ) : (
-            <Empty icon={<Search size={24} />} text="Busca entre millones de productos de Open Food Facts, en español." />
+            <Empty icon={<Search size={24} />} text="Busca en Open Food Facts España (Mercadona, Lidl, Aldi, Eroski…). Filtra por supermercado arriba." />
           )}
         </>
       ) : (

@@ -1,8 +1,9 @@
-import type { FoodProduct, Macros, Per100, SavedFood } from './types'
+import type { FoodProduct, Macros, Per100, SavedFood, StoreId } from './types'
+import { detectStore, storeDef } from './supermarket'
 
 const BASE = 'https://es.openfoodfacts.org'
 const FIELDS =
-  'code,product_name,product_name_es,brands,image_front_small_url,image_front_url,nutriscore_grade,nutriments,serving_size,serving_quantity'
+  'code,product_name,product_name_es,brands,stores,image_front_small_url,image_front_url,nutriscore_grade,nutriments,serving_size,serving_quantity'
 
 interface OffNutriments {
   [k: string]: number | string | undefined
@@ -12,6 +13,7 @@ interface OffProduct {
   product_name?: string
   product_name_es?: string
   brands?: string
+  stores?: string
   image_front_small_url?: string
   image_front_url?: string
   nutriscore_grade?: string
@@ -47,6 +49,7 @@ function parseProduct(p: OffProduct, fallbackCode?: string): FoodProduct | null 
     per100,
     servingG: serving > 0 ? serving : undefined,
     servingLabel: p.serving_size || undefined,
+    store: detectStore(p.stores, p.brands),
     source: 'barcode',
   }
 }
@@ -54,7 +57,7 @@ function parseProduct(p: OffProduct, fallbackCode?: string): FoodProduct | null 
 export async function fetchBarcode(code: string): Promise<FoodProduct | null> {
   const clean = code.replace(/\D/g, '')
   if (clean.length < 6) return null
-  const res = await fetch(`${BASE}/api/v2/product/${clean}.json?fields=${FIELDS}`)
+  const res = await fetch(`${BASE}/api/v2/product/${clean}.json?lc=es&cc=es&fields=${FIELDS}`)
   if (!res.ok) {
     if (res.status === 404) return null
     throw new Error(`Open Food Facts respondió ${res.status}`)
@@ -64,21 +67,52 @@ export async function fetchBarcode(code: string): Promise<FoodProduct | null> {
   return parseProduct(json.product, clean)
 }
 
-export async function searchFoods(query: string, signal?: AbortSignal): Promise<FoodProduct[]> {
-  const q = query.trim()
-  if (q.length < 2) return []
-  const url =
+type Tag = [type: string, value: string]
+
+/** One cgi/search.pl request. `tags` are AND-ed filters (e.g. countries=spain, stores=Mercadona). */
+async function offSearch(q: string, tags: Tag[], signal?: AbortSignal): Promise<OffProduct[]> {
+  let url =
     `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-    `&search_simple=1&action=process&json=1&page_size=24&fields=${FIELDS}`
+    `&search_simple=1&action=process&json=1&page_size=24&lc=es&cc=es&sort_by=unique_scans_n&fields=${FIELDS}`
+  tags.forEach(([type, value], i) => {
+    url += `&tagtype_${i}=${type}&tag_contains_${i}=contains&tag_${i}=${encodeURIComponent(value)}`
+  })
   const res = await fetch(url, { signal })
   if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
   const json = (await res.json()) as { products?: OffProduct[] }
-  return (json.products ?? [])
-    .map((p): FoodProduct | null => {
-      const parsed = parseProduct(p)
-      return parsed ? { ...parsed, source: 'search' } : null
-    })
-    .filter((p): p is FoodProduct => p !== null && p.per100.kcal > 0)
+  return json.products ?? []
+}
+
+const SPAIN: Tag = ['countries', 'spain']
+
+/**
+ * Text search on es.openfoodfacts.org, Spain first. With `store` set it only returns products of that chain
+ * (matched on the OFF «stores» tag and on the chain's private-label brand) and works without a query too.
+ */
+export async function searchFoods(query: string, signal?: AbortSignal, store?: StoreId | null): Promise<FoodProduct[]> {
+  const q = query.trim()
+  if (q.length < 2 && !store) return []
+
+  let raw: OffProduct[]
+  if (store) {
+    const def = storeDef(store)
+    const [a, b] = await Promise.all([offSearch(q, [SPAIN, ['stores', def.tag]], signal), offSearch(q, [SPAIN, ['brands', def.brandTag]], signal)])
+    raw = [...a, ...b]
+  } else {
+    raw = await offSearch(q, [SPAIN], signal)
+    // few Spanish hits: complete with the world-wide database
+    if (raw.length < 6) raw = [...raw, ...(await offSearch(q, [], signal))]
+  }
+
+  const seen = new Set<string>()
+  const out: FoodProduct[] = []
+  for (const p of raw) {
+    const parsed = parseProduct(p)
+    if (!parsed || parsed.per100.kcal <= 0 || seen.has(parsed.id)) continue
+    seen.add(parsed.id)
+    out.push({ ...parsed, store: parsed.store ?? store ?? undefined, source: 'search' })
+  }
+  return out
 }
 
 export const savedToProduct = (s: SavedFood): FoodProduct => ({

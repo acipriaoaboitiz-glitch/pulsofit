@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Cloud, CloudOff, Download, Loader2, LogOut, Mail, RefreshCw, Trash2 } from 'lucide-react'
+import { Cloud, Download, Eye, EyeOff, Loader2, Lock, LogOut, Mail, RefreshCw, Trash2 } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
 import { Segmented } from '../components/bits'
+import { PillSelect } from '../components/PillSelect'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
 import { useUI } from '../lib/ui'
@@ -62,34 +63,24 @@ function Num({
 function CloudCard() {
   const auth = useAuth()
   const [email, setEmail] = useState('')
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [password, setPassword] = useState('')
+  const [show, setShow] = useState(false)
   const [busy, setBusy] = useState(false)
-
-  if (!auth.cloud) {
-    return (
-      <div className="card-raised flex items-start gap-3 p-4">
-        <CloudOff size={20} className="mt-0.5 shrink-0 text-white/40" />
-        <div className="text-[13px] leading-snug text-white/60">
-          <b className="text-white">Modo invitado (local).</b> Tus datos viven en este dispositivo. Para sincronizar en la nube añade{' '}
-          <code className="num rounded bg-white/10 px-1">VITE_SUPABASE_URL</code> y{' '}
-          <code className="num rounded bg-white/10 px-1">VITE_SUPABASE_ANON_KEY</code> en tu <code className="num rounded bg-white/10 px-1">.env</code>.
-        </div>
-      </div>
-    )
-  }
+  const [err, setErr] = useState<string | null>(null)
+  const valid = /^\S+@\S+\.\S+$/.test(email.trim()) && password.length > 0
 
   if (auth.session) {
     return (
       <div className="card-raised space-y-3 p-4">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-full bg-emerald/15 text-emerald">
-            {auth.status === 'syncing' ? <Loader2 size={18} className="animate-spin" /> : <Cloud size={18} />}
-          </div>
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-emerald/15 text-emerald">{auth.status === 'syncing' ? <Loader2 size={19} className="animate-spin" /> : <Cloud size={19} />}</div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[14px] font-bold">{auth.email}</div>
-            <div className={cn('text-[12px]', auth.status === 'error' ? 'text-fire' : 'text-white/45')}>
-              {auth.status === 'syncing' ? 'Sincronizando…' : auth.status === 'error' ? `Error: ${auth.error}` : 'Sincronizado con la nube'}
-            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald/30 bg-emerald/10 px-2.5 py-1 text-[12px] font-bold text-emerald">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald" style={{ boxShadow: '0 0 8px #10B981' }} />
+              Sincronizado · PC y Móvil
+            </span>
+            <div className="mt-1.5 truncate text-[13px] text-white/60">{auth.email}</div>
+            {auth.status === 'error' && <div className="text-[12px] text-fire">No se pudo sincronizar. Reintenta en un momento.</div>}
           </div>
           <button className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.06] active:scale-90" onClick={auth.syncNow} aria-label="Sincronizar ahora">
             <RefreshCw size={16} />
@@ -102,44 +93,39 @@ function CloudCard() {
     )
   }
 
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!valid || busy) return
+    setBusy(true)
+    setErr(null)
+    const r = await auth.signInPassword(email.trim(), password)
+    if (r.error) setErr(r.error)
+    setBusy(false)
+  }
+
   return (
-    <div className="card-raised space-y-3 p-4">
-      <p className="text-[13px] leading-snug text-white/60">
-        <b className="text-white">Guarda y sincroniza tus datos.</b> Entra con email o Google: lo que ya has registrado como invitado se sube a tu cuenta.
-      </p>
-      <button
-        className="btn w-full bg-white text-black"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true)
-          const err = await auth.signInGoogle()
-          if (err) setMsg({ ok: false, text: err })
-          setBusy(false)
-        }}
-      >
-        Continuar con Google
-      </button>
-      <form
-        className="flex gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          if (!email.includes('@')) return
-          setBusy(true)
-          const err = await auth.signInEmail(email.trim())
-          setMsg(err ? { ok: false, text: err } : { ok: true, text: 'Te hemos enviado un enlace mágico. Ábrelo en este dispositivo.' })
-          setBusy(false)
-        }}
-      >
-        <div className="relative flex-1">
-          <Mail size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
-          <input className="input pl-11" type="email" placeholder="tu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <button className="btn-primary" disabled={busy || !email.includes('@')}>
-          Entrar
+    <form onSubmit={submit} className="card-raised space-y-3 p-4">
+      <div>
+        <p className="text-[15px] font-extrabold">Sincronización en la nube</p>
+        <p className="mt-0.5 text-[12.5px] leading-snug text-white/50">Entra con tu cuenta privada para ver los mismos datos en el móvil y en el ordenador.</p>
+      </div>
+      <div className="relative">
+        <Mail size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+        <input className="input pl-11" type="email" autoComplete="email" inputMode="email" placeholder="Correo electrónico" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Correo electrónico" />
+      </div>
+      <div className="relative">
+        <Lock size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+        <input className="input pl-11 pr-12" type={show ? 'text' : 'password'} autoComplete="current-password" placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="Contraseña" />
+        <button type="button" aria-label={show ? 'Ocultar contraseña' : 'Mostrar contraseña'} onClick={() => setShow((v) => !v)} className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-white/40">
+          {show ? <EyeOff size={17} /> : <Eye size={17} />}
         </button>
-      </form>
-      {msg && <p className={cn('text-[12px]', msg.ok ? 'text-emerald' : 'text-fire')}>{msg.text}</p>}
-    </div>
+      </div>
+      {err && <p className="text-[13px] leading-snug text-fire">{err}</p>}
+      <button className="btn-primary w-full" disabled={!valid || busy}>
+        {busy && <Loader2 size={17} className="animate-spin" />}
+        Entrar y sincronizar
+      </button>
+    </form>
   )
 }
 
@@ -182,26 +168,18 @@ function Body() {
           <Num label="Peso actual" value={d.weightKg} unit="kg" min={LIMITS.weightKg[0]} max={LIMITS.weightKg[1]} onChange={(n) => set('weightKg', n)} />
           <Num label="Peso objetivo" value={d.targetKg} unit="kg" min={LIMITS.targetKg[0]} max={LIMITS.targetKg[1]} onChange={(n) => set('targetKg', n)} />
         </div>
-        <label className="block">
+        <div>
           <span className="label">Actividad diaria</span>
-          <select className="input mt-1.5" value={d.activity} onChange={(e) => set('activity', e.target.value as ActivityLevel)}>
-            {(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map((k) => (
-              <option key={k} value={k}>
-                {ACTIVITY_LABELS[k].name} — {ACTIVITY_LABELS[k].desc}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
+          <div className="mt-2">
+            <PillSelect<ActivityLevel> variant="cards" label="Actividad diaria" value={d.activity} onChange={(v) => set('activity', v)} options={(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map((k) => ({ id: k, label: ACTIVITY_LABELS[k].name, desc: ACTIVITY_LABELS[k].desc }))} />
+          </div>
+        </div>
+        <div>
           <span className="label">Objetivo</span>
-          <select className="input mt-1.5" value={d.goal} onChange={(e) => set('goal', e.target.value as Goal)}>
-            {(Object.keys(GOAL_LABELS) as Goal[]).map((k) => (
-              <option key={k} value={k}>
-                {GOAL_LABELS[k].name} — {GOAL_LABELS[k].desc}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="mt-2">
+            <PillSelect<Goal> variant="cards" label="Objetivo" value={d.goal} onChange={(v) => set('goal', v)} options={(Object.keys(GOAL_LABELS) as Goal[]).map((k) => ({ id: k, label: GOAL_LABELS[k].name, desc: GOAL_LABELS[k].desc }))} />
+          </div>
+        </div>
         <div className="num grid grid-cols-4 gap-2 text-center text-[12px] text-white/50">
           <div>
             <b className="block text-[17px] text-white">{fmt(targets.kcal)}</b>kcal

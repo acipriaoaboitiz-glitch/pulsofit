@@ -1,31 +1,165 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Flame, Plus, Timer, Trash2, Trophy, X } from 'lucide-react'
+import { Check, ChevronsUp, Copy, Disc3, Flame, Minus, Plus, Timer, Trash2, Trophy, X } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
+import { Ring } from '../components/Ring'
+import { Confetti } from '../components/Confetti'
 import { ExercisePicker } from './ExercisePicker'
+import { PlateSheet } from './PlateSheet'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
-import { exerciseById } from '../lib/exercises'
-import { baselineFor, detectPr, lastSetsFor, sessionVolume } from '../lib/workout'
-import { GYM_MET, INTENSITY_LABELS, gymKcal } from '../lib/activities'
+import { GROUPS, GROUP_COLOR, exerciseById, exerciseMet, groupOf, isBarbell } from '../lib/exercises'
+import type { Group } from '../lib/exercises'
+import { bestE1rm, isPr, lastSetsFor, newExercise, sessionVolume, workoutKcal } from '../lib/workout'
+import { DEFAULT_WEIGHT_KG, epley, exerciseSetsKcal, suggestIntensity } from '../lib/calc'
 import type { ActiveWorkout as Active, Intensity, SetLog } from '../lib/types'
-import { beep, cn, fmt, fmtClock, haptic, primeAudio, todayKey } from '../lib/utils'
+import { beep, cn, fmt, fmtClock, fmtHms, haptic, primeAudio, todayKey, uid } from '../lib/utils'
 
 const REST_PRESETS = [60, 90, 120, 180]
 
+function StepBtn({ label, children, onClick, wide }: { label: string; children: React.ReactNode; onClick: () => void; wide?: boolean }) {
+  return (
+    <motion.button
+      type="button"
+      aria-label={label}
+      whileTap={{ scale: 0.88 }}
+      onClick={() => {
+        haptic(6)
+        onClick()
+      }}
+      className={cn('num grid h-10 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-[12px] font-bold text-white/80 active:bg-white/15', wide ? 'w-11' : 'w-9')}
+    >
+      {children}
+    </motion.button>
+  )
+}
+
+interface SetRowProps {
+  index: number
+  set: SetLog
+  barbell: boolean
+  canCopy: boolean
+  onChange: (p: Partial<SetLog>) => void
+  onCopy: () => void
+  onToggle: () => void
+  onPlates: () => void
+}
+
+function SetRow({ index, set, barbell, canCopy, onChange, onCopy, onToggle, onPlates }: SetRowProps) {
+  const e1 = epley(set.kg, set.reps)
+  const bump = (d: number) => onChange({ kg: Math.max(0, Math.round((set.kg + d) * 100) / 100) })
+  return (
+    <div className={cn('rounded-2xl border p-2.5 transition-colors', set.done ? (set.pr ? 'border-neon/45 bg-neon/[0.11] shadow-[0_0_24px_-10px_rgba(139,92,246,0.9)]' : 'border-emerald/35 bg-emerald/[0.08] shadow-[0_0_24px_-12px_rgba(16,185,129,0.9)]') : 'border-white/[0.07] bg-white/[0.025]')}>
+      {/* kg */}
+      <div className="flex items-center gap-1">
+        <span
+          className={cn('num mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[12px] font-bold', set.pr ? 'bg-neon text-white' : 'bg-white/[0.06] text-white/70')}
+          title={set.pr ? 'Récord personal' : undefined}
+        >
+          {set.pr ? <Trophy size={14} /> : index + 1}
+        </span>
+        <StepBtn wide label="Menos 2,5 kilos" onClick={() => bump(-2.5)}>-2.5</StepBtn>
+        <StepBtn label="Menos 1 kilo" onClick={() => bump(-1)}>-1</StepBtn>
+        <div className="relative min-w-0 flex-1">
+          <input
+            className="num h-10 w-full rounded-xl border border-line bg-raised text-center text-[18px] font-bold outline-none focus:border-neon/70"
+            inputMode="decimal"
+            value={set.kg === 0 ? '' : String(set.kg)}
+            placeholder="0"
+            aria-label={`Peso serie ${index + 1} en kilos`}
+            onChange={(e) => {
+              const v = e.target.value.replace(',', '.')
+              if (/^\d{0,3}(\.\d{0,2})?$/.test(v)) onChange({ kg: v === '' ? 0 : parseFloat(v) || 0 })
+            }}
+          />
+          <span className="pointer-events-none absolute bottom-0.5 right-2 text-[9px] font-bold text-white/30">KG</span>
+        </div>
+        <StepBtn label="Más 1 kilo" onClick={() => bump(1)}>+1</StepBtn>
+        <StepBtn wide label="Más 2,5 kilos" onClick={() => bump(2.5)}>+2.5</StepBtn>
+        {barbell && (
+          <button type="button" aria-label="Calculadora de discos" onClick={onPlates} className="grid h-10 w-9 shrink-0 place-items-center rounded-xl bg-neon/15 text-violet-200 active:scale-90">
+            <Disc3 size={17} />
+          </button>
+        )}
+      </div>
+
+      {/* reps + copy + check */}
+      <div className="mt-2 flex items-center gap-1.5">
+        <StepBtn label="Una repetición menos" onClick={() => onChange({ reps: Math.max(0, set.reps - 1) })}>
+          <Minus size={15} />
+        </StepBtn>
+        <div className="relative w-[66px] shrink-0">
+          <input
+            className="num h-10 w-full rounded-xl border border-line bg-raised text-center text-[18px] font-bold outline-none focus:border-neon/70"
+            inputMode="numeric"
+            value={set.reps === 0 ? '' : String(set.reps)}
+            placeholder="0"
+            aria-label={`Repeticiones serie ${index + 1}`}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, '').slice(0, 3)
+              onChange({ reps: v === '' ? 0 : parseInt(v, 10) })
+            }}
+          />
+          <span className="pointer-events-none absolute bottom-0.5 right-1.5 text-[9px] font-bold text-white/30">REPS</span>
+        </div>
+        <StepBtn label="Una repetición más" onClick={() => onChange({ reps: set.reps + 1 })}>
+          <Plus size={15} />
+        </StepBtn>
+
+        <button
+          type="button"
+          disabled={!canCopy}
+          onClick={() => {
+            haptic(10)
+            onCopy()
+          }}
+          aria-label="Copiar la serie anterior"
+          className="flex h-10 items-center gap-1 rounded-xl bg-white/[0.07] px-2.5 text-[11px] font-bold text-white/70 active:scale-95 disabled:opacity-25"
+        >
+          <Copy size={13} />
+          Copiar
+        </button>
+
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.86 }}
+          onClick={onToggle}
+          aria-label={set.done ? 'Desmarcar serie' : 'Completar serie'}
+          aria-pressed={set.done}
+          className={cn('ml-auto grid h-14 w-14 shrink-0 place-items-center rounded-[18px] transition-colors', set.done ? (set.pr ? 'bg-neon text-white shadow-[0_6px_22px_-6px_rgba(139,92,246,0.9)]' : 'bg-emerald text-[#04130d] shadow-[0_6px_22px_-6px_rgba(16,185,129,0.8)]') : 'border border-white/[0.1] bg-white/[0.07] text-white/40')}
+        >
+          <motion.span animate={{ scale: set.done ? [1, 1.35, 1] : 1 }} transition={{ duration: 0.3 }}>
+            <Check size={26} strokeWidth={3.5} />
+          </motion.span>
+        </motion.button>
+      </div>
+
+      {e1 > 0 && (
+        <p className="num mt-1.5 flex items-center gap-1 text-[11px] text-white/40">
+          <ChevronsUp size={12} />
+          1RM est. <b className={cn(set.pr ? 'text-violet-300' : 'text-white/60')}>{Math.round(e1)} kg</b>
+          {set.pr && <span className="ml-1 rounded-md bg-neon px-1.5 py-0.5 text-[10px] font-extrabold text-white">NEW PR</span>}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function ActiveWorkout() {
-  const { state, setActive, addSession } = useStore()
+  const { state, setActive, addSession, saveRoutine } = useStore()
   const ui = useUI()
   const active = state.active
   const [now, setNow] = useState(Date.now())
   const [picker, setPicker] = useState(false)
+  const [pickerGroup, setPickerGroup] = useState<Group | undefined>(undefined)
   const [finishing, setFinishing] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [burst, setBurst] = useState(0)
   const [restDone, setRestDone] = useState(false)
+  const [plates, setPlates] = useState<{ ei: number; si: number } | null>(null)
   const firedFor = useRef<number | null>(null)
 
-  // single ticking clock (250 ms) while a workout is open
   useEffect(() => {
     if (!active) return
     const t = window.setInterval(() => setNow(Date.now()), 250)
@@ -45,51 +179,49 @@ export function ActiveWorkout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, restEndsAt])
 
-  const prevSets = useMemo(() => {
-    const m = new Map<string, SetLog[] | null>()
-    if (active) for (const e of active.exercises) m.set(e.exerciseId, lastSetsFor(state.sessions, e.exerciseId))
+  // open the exercise picker from the global "+" menu while a workout is running
+  useEffect(() => {
+    if (active && ui.sheet?.name === 'addExercise') {
+      setPicker(true)
+      ui.close()
+    }
+  }, [active, ui])
+
+  const bests = useMemo(() => {
+    const m = new Map<string, number | null>()
+    if (active) for (const e of active.exercises) m.set(e.exerciseId, bestE1rm(state.sessions, e.exerciseId))
     return m
-  }, [active, state.sessions])
+  }, [active?.exercises.length, state.sessions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!active) return null
 
   const update = (fn: (a: Active) => Active) => setActive(fn(active))
-
   const setField = (ei: number, si: number, p: Partial<SetLog>) =>
-    update((a) => ({
-      ...a,
-      exercises: a.exercises.map((e, i) =>
-        i !== ei ? e : { ...e, sets: e.sets.map((s, j) => (j !== si ? s : { ...s, ...p })) },
-      ),
-    }))
+    update((a) => ({ ...a, exercises: a.exercises.map((e, i) => (i !== ei ? e : { ...e, sets: e.sets.map((s, j) => (j !== si ? s : { ...s, ...p })) })) }))
 
   const toggleSet = (ei: number, si: number) => {
     primeAudio()
-    const ex = active.exercises[ei]
-    const s = ex.sets[si]
+    const ex = active.exercises[ei]!
+    const s = ex.sets[si]!
     if (s.done) {
       setField(ei, si, { done: false, pr: undefined })
       return
     }
-    const base = baselineFor(state.sessions, ex.exerciseId)
-    const pr = detectPr(base, ex.sets.slice(0, si), s)
-    const rest = ex.restSec ?? active.restTotal
+    const pr = isPr(bests.get(ex.exerciseId) ?? null, ex.sets.slice(0, si), s)
     update((a) => ({
       ...a,
-      restTotal: rest,
-      restEndsAt: Date.now() + rest * 1000,
-      exercises: a.exercises.map((e, i) =>
-        i !== ei ? e : { ...e, sets: e.sets.map((x, j) => (j !== si ? x : { ...x, done: true, pr })) },
-      ),
+      restEndsAt: Date.now() + a.restTotal * 1000,
+      exercises: a.exercises.map((e, i) => (i !== ei ? e : { ...e, sets: e.sets.map((x, j) => (j !== si ? x : { ...x, done: true, pr: pr || undefined })) })),
     }))
     firedFor.current = null
     setRestDone(false)
     if (pr) {
       haptic([30, 60, 30, 60, 120])
       beep(2)
-      setToast(`¡Récord personal de ${pr}! ${exerciseById(ex.exerciseId)?.name ?? ''}`)
-      window.setTimeout(() => setToast(null), 3200)
-    } else haptic(18)
+      setBurst((b) => b + 1)
+      setToast(`NEW PR · ${exerciseById(ex.exerciseId)?.name ?? ''} · 1RM est. ${Math.round(epley(s.kg, s.reps))} kg`)
+      window.setTimeout(() => setToast(null), 3400)
+    } else haptic(20)
   }
 
   const addSet = (ei: number) =>
@@ -108,251 +240,296 @@ export function ActiveWorkout() {
   const doneSets = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
   const totalSets = active.exercises.reduce((n, e) => n + e.sets.length, 0)
   const volume = sessionVolume(active.exercises)
+  const weight = state.profile?.weightKg ?? DEFAULT_WEIGHT_KG
+  const liveKcal = workoutKcal(active.exercises, weight)
 
-  const setRestPreset = (sec: number) =>
-    update((a) => ({ ...a, restTotal: sec, restEndsAt: a.restEndsAt ? Date.now() + sec * 1000 : null }))
+  const plateEx = plates ? active.exercises[plates.ei] : undefined
+  const plateSet = plates && plateEx ? plateEx.sets[plates.si] : undefined
 
   return (
-    <motion.div
-      className="fixed inset-0 z-[60] flex flex-col bg-[#080a0f]"
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 34 }}
-    >
-      {/* header */}
-      <div className="border-b border-line px-4 pb-3 pt-[calc(14px+var(--safe-top))]">
+    <motion.div className="fixed inset-0 z-[60] flex flex-col bg-[#04060A] lg:left-64 lg:flex-row" initial={{ y: '100%' }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 34 }}>
+      {burst > 0 && <Confetti key={burst} />}
+
+      {/* header: live session bar */}
+      <div className="px-4 pb-3 transition-[padding] duration-300 lg:order-2 lg:w-[380px] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-white/[0.06] lg:bg-[#070A10]/80 lg:px-6 lg:!pt-8" style={{ paddingTop: resting || restDone ? "calc(68px + var(--safe-top))" : "calc(14px + var(--safe-top))" }}>
         <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => setDiscarding(true)}
-            aria-label="Descartar entreno"
-            className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-white/60 active:scale-90"
-          >
+          <button onClick={() => setDiscarding(true)} aria-label="Descartar entreno" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.08] bg-white/[0.05] text-white/60 active:scale-90">
             <X size={18} />
           </button>
           <div className="min-w-0 flex-1 text-center">
-            <div className="truncate text-[15px] font-extrabold">{active.routineName}</div>
-            <div className="num text-[13px] font-bold text-neon">{fmtClock(elapsed)}</div>
+            <div className="label flex items-center justify-center gap-1.5 !text-neon">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-neon opacity-70" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-neon" />
+              </span>
+              Sesión en vivo
+            </div>
+            <div className="mt-0.5 truncate text-[15px] font-extrabold">{active.routineName}</div>
           </div>
           <button className="btn-violet !rounded-full !px-4 !py-2.5 text-[14px]" onClick={() => setFinishing(true)}>
             Terminar
           </button>
         </div>
-        <div className="mt-3 flex items-center gap-4 text-[12px] text-white/50">
-          <span className="num">
-            <b className="text-white">{doneSets}</b>/{totalSets} series
-          </span>
-          <span className="num">
-            <b className="text-white">{fmt(volume)}</b> kg volumen
-          </span>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-neon transition-all" style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
+
+        <div className="card mt-3 grid grid-cols-3 divide-x divide-white/[0.07] py-3">
+          <div className="text-center">
+            <div className="label !text-[9px]">Tiempo</div>
+            <div className="num mt-1 text-[20px] font-bold leading-none text-violet-300 lg:text-[24px]">{fmtHms(elapsed)}</div>
+          </div>
+          <div className="text-center">
+            <div className="label !text-[9px]">Volumen</div>
+            <div className="num mt-1 text-[20px] font-bold leading-none">
+              {fmt(volume)}
+              <span className="ml-0.5 text-[10px] text-white/40">kg</span>
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="label !text-[9px]">Calorías</div>
+            <div className="num mt-1 flex items-center justify-center gap-0.5 text-[20px] font-bold leading-none text-fire">
+              <Flame size={14} />
+              {fmt(liveKcal)}
+            </div>
           </div>
         </div>
+
+        <div className="mt-3 flex items-center gap-3">
+          <span className="num text-[11px] text-white/50">
+            <b className="text-white">{doneSets}</b>/{totalSets} series
+          </span>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald to-aqua transition-all" style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
+          </div>
+          <Timer size={13} className="text-white/40" />
+          <div className="flex gap-1">
+            {REST_PRESETS.map((sec) => (
+              <button
+                key={sec}
+                onClick={() => {
+                  haptic(6)
+                  update((a) => ({ ...a, restTotal: sec, restEndsAt: a.restEndsAt ? Date.now() + sec * 1000 : null }))
+                }}
+                className={cn('num rounded-lg px-2 py-1 text-[11px] font-bold transition', active.restTotal === sec ? 'bg-neon text-white' : 'bg-white/[0.07] text-white/55')}
+              >
+                {sec}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {(resting || restDone) && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-4 hidden overflow-hidden lg:block">
+              <div className="card flex items-center gap-4 p-4">
+                <Ring size={88} stroke={8} value={resting ? rest / active.restTotal : restDone ? 1 : 0} gradient={restDone ? ['#10B981', '#06B6D4'] : ['#8B5CF6', '#C4B5FD']} glow={false}>
+                  <span className="num text-[17px] font-bold">{resting ? fmtClock(Math.ceil(rest)) : '0:00'}</span>
+                </Ring>
+                {resting ? (
+                  <div className="flex flex-1 flex-col gap-2">
+                    <span className="label !text-neon">Descanso</span>
+                    <div className="flex gap-1.5">
+                      <button className="num flex-1 rounded-xl bg-white/[0.09] py-2 text-[12px] font-bold active:scale-95" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) - 15000 }))}>
+                        −15s
+                      </button>
+                      <button className="num flex-1 rounded-xl bg-white/[0.09] py-2 text-[12px] font-bold active:scale-95" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) + 15000 }))}>
+                        +15s
+                      </button>
+                      <button className="flex-1 rounded-xl bg-neon py-2 text-[12px] font-bold text-white active:scale-95" onClick={() => update((a) => ({ ...a, restEndsAt: null }))}>
+                        Saltar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-[15px] font-extrabold text-emerald">¡Siguiente serie!</span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* exercises */}
-      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-[220px] pt-4">
-        {active.exercises.length === 0 && (
-          <p className="py-10 text-center text-sm text-white/40">Entreno libre: añade ejercicios para empezar.</p>
-        )}
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-[170px] pt-4 lg:order-1 lg:grid lg:auto-rows-max lg:grid-cols-2 lg:content-start lg:items-start lg:gap-5 lg:space-y-0 lg:px-8 lg:pt-8">
+        {active.exercises.length === 0 && <p className="py-10 text-center text-sm text-white/40 lg:col-span-2">Sesión libre: añade ejercicios según lo que hagas hoy.</p>}
         {active.exercises.map((ex, ei) => {
           const def = exerciseById(ex.exerciseId)
-          const prev = prevSets.get(ex.exerciseId)
+          const best = bests.get(ex.exerciseId)
+          const grp = def ? groupOf(def.muscle) : undefined
+          const color = grp ? GROUP_COLOR[grp] : '#8B5CF6'
+          const prev = lastSetsFor(state.sessions, ex.exerciseId)
+          const top = prev ? [...prev].sort((a, b) => b.kg * b.reps - a.kg * a.reps)[0] : undefined
           return (
-            <section key={ex.exerciseId} className="card p-4">
+            <section key={`${ex.exerciseId}-${ei}`} className="card overflow-hidden p-3.5">
+              <span aria-hidden className="absolute inset-y-4 left-0 w-[3px] rounded-r-full" style={{ background: color, boxShadow: `0 0 14px ${color}` }} />
               <div className="mb-3 flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-[16px] font-extrabold leading-tight">{def?.name ?? ex.exerciseId}</h3>
-                  <p className="text-[12px] text-white/45">{def?.muscle} · {def?.equipment}</p>
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ background: `${color}1f`, color }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                      {grp ?? 'Otro'}
+                    </span>
+                    {ex.bonus && <span className="rounded-md border border-fire/30 bg-fire/10 px-1.5 py-0.5 text-[9px] font-extrabold tracking-[0.12em] text-fire">BONUS</span>}
+                    {top ? (
+                      <span className="num rounded-full bg-white/[0.06] px-2 py-0.5 text-[10.5px] text-white/65">
+                        Última vez: <b className="text-white">{top.kg > 0 ? `${top.kg}kg` : 'PC'} × {top.reps}</b>
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10.5px] text-white/45">Primera vez</span>
+                    )}
+                  </div>
+                  <h3 className="truncate text-[16px] font-extrabold leading-tight">{def?.name ?? ex.exerciseId}</h3>
+                  <span className="num mt-1.5 inline-flex items-center gap-1 rounded-full border border-fire/25 bg-fire/10 px-2.5 py-1 text-[11.5px] font-bold text-fire">
+                    <Flame size={11} />~{exerciseSetsKcal(exerciseMet(ex.exerciseId), weight, ex.sets)} kcal · {ex.sets.filter((x) => x.done).length} {ex.sets.filter((x) => x.done).length === 1 ? 'serie' : 'series'}
+                    <span className="font-semibold text-fire/60">MET {exerciseMet(ex.exerciseId).toFixed(1)}</span>
+                  </span>
+                  <p className="num text-[11.5px] text-white/40">
+                    {def?.equipment}
+                    {best ? <span className="ml-1.5 text-violet-300">· mejor 1RM {Math.round(best)} kg</span> : null}
+                  </p>
                 </div>
-                <button
-                  aria-label="Quitar ejercicio"
-                  className="grid h-8 w-8 place-items-center rounded-lg text-white/30 active:text-fire"
-                  onClick={() => update((a) => ({ ...a, exercises: a.exercises.filter((_, i) => i !== ei) }))}
-                >
+                <button aria-label="Quitar ejercicio" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/30 active:text-fire" onClick={() => update((a) => ({ ...a, exercises: a.exercises.filter((_, i) => i !== ei) }))}>
                   <Trash2 size={16} />
                 </button>
               </div>
 
-              <div className="num mb-1 grid grid-cols-[28px_1fr_68px_60px_44px] items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-wider text-white/35">
-                <span>Set</span>
-                <span>Anterior</span>
-                <span className="text-center">kg</span>
-                <span className="text-center">Reps</span>
-                <span />
+              <div className="space-y-2">
+                {ex.sets.map((s, si) => (
+                  <SetRow
+                    key={si}
+                    index={si}
+                    set={s}
+                    barbell={isBarbell(ex.exerciseId)}
+                    canCopy={si > 0}
+                    onChange={(p) => setField(ei, si, p)}
+                    onCopy={() => {
+                      const prev = ex.sets[si - 1]
+                      if (prev) setField(ei, si, { kg: prev.kg, reps: prev.reps })
+                    }}
+                    onToggle={() => toggleSet(ei, si)}
+                    onPlates={() => setPlates({ ei, si })}
+                  />
+                ))}
               </div>
 
-              <div className="space-y-1.5">
-                {ex.sets.map((s, si) => {
-                  const p = prev?.[si] ?? prev?.[prev.length - 1]
-                  return (
-                    <div
-                      key={si}
-                      className={cn(
-                        'grid grid-cols-[28px_1fr_68px_60px_44px] items-center gap-2 rounded-xl px-1 py-1 transition-colors',
-                        s.done && 'bg-emerald/10',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'num grid h-7 w-7 place-items-center rounded-lg text-[12px] font-bold',
-                          s.pr ? 'bg-amber-400 text-black' : 'bg-white/[0.06]',
-                        )}
-                        title={s.pr ? `Récord de ${s.pr}` : undefined}
-                      >
-                        {s.pr ? <Trophy size={14} /> : si + 1}
-                      </span>
-                      <span className="num truncate text-[12px] text-white/40">{p ? `${p.kg}kg × ${p.reps}` : '—'}</span>
-                      <input
-                        className="num h-11 w-full rounded-xl border border-line bg-raised text-center text-[16px] font-bold outline-none focus:border-neon/70"
-                        inputMode="decimal"
-                        value={s.kg === 0 ? '' : String(s.kg)}
-                        placeholder="0"
-                        aria-label={`Peso serie ${si + 1}`}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(',', '.')
-                          if (/^\d{0,3}(\.\d{0,2})?$/.test(v)) setField(ei, si, { kg: v === '' ? 0 : parseFloat(v) || 0 })
-                        }}
-                      />
-                      <input
-                        className="num h-11 w-full rounded-xl border border-line bg-raised text-center text-[16px] font-bold outline-none focus:border-neon/70"
-                        inputMode="numeric"
-                        value={s.reps === 0 ? '' : String(s.reps)}
-                        placeholder="0"
-                        aria-label={`Repeticiones serie ${si + 1}`}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/\D/g, '').slice(0, 3)
-                          setField(ei, si, { reps: v === '' ? 0 : parseInt(v, 10) })
-                        }}
-                      />
-                      <button
-                        onClick={() => toggleSet(ei, si)}
-                        aria-label={s.done ? 'Desmarcar serie' : 'Completar serie'}
-                        className={cn(
-                          'grid h-11 w-11 place-items-center rounded-xl transition active:scale-90',
-                          s.done ? 'bg-emerald text-[#04130d]' : 'bg-white/[0.08] text-white/50',
-                        )}
-                      >
-                        <Check size={20} strokeWidth={3.5} />
-                      </button>
-                    </div>
-                  )
-                })}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/55 active:bg-white/[0.05]" onClick={() => addSet(ei)}>
+                  <Plus size={15} strokeWidth={3} /> Añadir serie
+                </button>
+                <button
+                  disabled={ex.sets.length <= 1}
+                  className="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/55 active:bg-white/[0.05] disabled:opacity-25"
+                  onClick={() => {
+                    haptic(8)
+                    update((a) => ({ ...a, exercises: a.exercises.map((e, i) => (i !== ei ? e : { ...e, sets: e.sets.slice(0, -1) })) }))
+                  }}
+                >
+                  <Minus size={15} strokeWidth={3} /> Quitar serie
+                </button>
               </div>
-
-              <button
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold text-white/50 active:bg-white/[0.05]"
-                onClick={() => addSet(ei)}
-              >
-                <Plus size={15} strokeWidth={3} /> Añadir serie
-              </button>
             </section>
           )
         })}
 
-        <button className="btn-ghost w-full" onClick={() => setPicker(true)}>
-          <Plus size={18} /> Añadir ejercicio
-        </button>
+        <section className="card p-4 lg:col-span-2">
+          <button
+            className="btn-violet mb-3 w-full !py-3.5 text-[15px]"
+            onClick={() => {
+              setPickerGroup(undefined)
+              setPicker(true)
+            }}
+          >
+            <Plus size={18} strokeWidth={3} /> Añadir ejercicio extra
+          </button>
+          <p className="label mb-2.5">o por músculo</p>
+          <div className="flex flex-wrap gap-2">
+            {GROUPS.map((g) => (
+              <button
+                key={g}
+                onClick={() => {
+                  haptic(8)
+                  setPickerGroup(g)
+                  setPicker(true)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold transition active:scale-95"
+                style={{ background: `${GROUP_COLOR[g]}14`, borderColor: `${GROUP_COLOR[g]}40`, color: GROUP_COLOR[g] }}
+              >
+                <Plus size={13} strokeWidth={3} />
+                {g}
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
 
       {/* PR toast */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-[calc(24px+var(--safe-bottom))] z-10 flex justify-center px-4">
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ y: -80, opacity: 0, scale: 0.9 }}
+            initial={{ y: 80, opacity: 0, scale: 0.9 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -80, opacity: 0 }}
+            exit={{ y: 80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 24 }}
-            className="absolute inset-x-4 top-[calc(78px+var(--safe-top))] z-10 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-300 to-amber-500 p-3.5 text-black shadow-[0_12px_40px_-8px_rgba(251,191,36,0.8)]"
+            className="pointer-events-auto flex w-full max-w-[560px] items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-500 to-neon p-3.5 text-white shadow-[0_12px_40px_-8px_rgba(139,92,246,0.9)]"
           >
             <Trophy size={26} />
             <span className="text-[14px] font-extrabold leading-tight">{toast}</span>
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
-      {/* rest timer dock */}
-      <div className="absolute inset-x-0 bottom-0 border-t border-line bg-[#0d1017]/95 px-4 pb-[calc(14px+var(--safe-bottom))] pt-3 backdrop-blur-xl">
-        <div className="mb-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Timer size={18} className={resting ? 'text-neon' : restDone ? 'text-emerald' : 'text-white/40'} />
-            {resting ? (
-              <span className="num text-[28px] font-bold leading-none text-neon">{fmtClock(Math.ceil(rest))}</span>
-            ) : restDone ? (
-              <span className="text-[15px] font-extrabold text-emerald">¡Descanso terminado! A por la siguiente</span>
-            ) : (
-              <span className="text-[14px] font-bold text-white/45">Descanso · se inicia al completar una serie</span>
-            )}
-          </div>
-          {resting && (
-            <div className="flex gap-1.5">
-              <button
-                className="num rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[12px] font-bold"
-                onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) - 15000 }))}
-              >
-                −15
-              </button>
-              <button
-                className="num rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[12px] font-bold"
-                onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) + 15000 }))}
-              >
-                +15
-              </button>
-              <button
-                className="rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[12px] font-bold"
-                onClick={() => update((a) => ({ ...a, restEndsAt: null }))}
-              >
-                Saltar
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="mb-3 h-2 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-neon to-[#c4b5fd] transition-[width] duration-200"
-            style={{ width: resting ? `${(rest / active.restTotal) * 100}%` : restDone ? '0%' : '100%', opacity: resting ? 1 : 0.2 }}
-          />
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {REST_PRESETS.map((sec) => (
-            <button
-              key={sec}
-              onClick={() => {
-                haptic(6)
-                setRestPreset(sec)
-              }}
-              className={cn(
-                'num rounded-xl py-2.5 text-[13px] font-bold transition active:scale-95',
-                active.restTotal === sec ? 'bg-neon text-white' : 'bg-white/[0.07] text-white/60',
-              )}
+      {/* rest timer: Dynamic-Island style pill at the top */}
+      <div className="pointer-events-none absolute inset-x-0 top-[calc(8px+var(--safe-top))] z-30 flex justify-center px-4 lg:hidden">
+        <AnimatePresence>
+          {(resting || restDone) && (
+            <motion.div
+              initial={{ y: -40, opacity: 0, scale: 0.6 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -40, opacity: 0, scale: 0.7 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/10 bg-black py-1.5 pl-1.5 pr-2 shadow-[0_18px_40px_-10px_rgba(0,0,0,0.95),0_0_0_1px_rgba(139,92,246,0.25)]"
             >
-              {sec}s
-            </button>
-          ))}
-        </div>
+              <Ring size={46} stroke={5} value={resting ? rest / active.restTotal : restDone ? 1 : 0} gradient={restDone ? ['#10B981', '#06B6D4'] : ['#8B5CF6', '#C4B5FD']} glow={false}>
+                <span className="num text-[11px] font-bold">{resting ? fmtClock(Math.ceil(rest)) : '0:00'}</span>
+              </Ring>
+              {resting ? (
+                <>
+                  <span className="num w-[52px] text-[22px] font-bold leading-none">{fmtClock(Math.ceil(rest))}</span>
+                  <button className="num rounded-full bg-white/[0.09] px-2.5 py-1.5 text-[12px] font-bold active:scale-90" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) - 15000 }))}>
+                    −15s
+                  </button>
+                  <button className="num rounded-full bg-white/[0.09] px-2.5 py-1.5 text-[12px] font-bold active:scale-90" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) + 15000 }))}>
+                    +15s
+                  </button>
+                  <button className="rounded-full bg-neon px-3 py-1.5 text-[12px] font-bold text-white active:scale-90" onClick={() => update((a) => ({ ...a, restEndsAt: null }))}>
+                    Saltar
+                  </button>
+                </>
+              ) : (
+                <span className="px-2 text-[13px] font-extrabold text-emerald">¡Siguiente serie!</span>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <ExercisePicker
         open={picker}
-        onClose={() => setPicker(false)}
+        initialGroup={pickerGroup}
+        onClose={() => {
+          setPicker(false)
+          setPickerGroup(undefined)
+        }}
         exclude={active.exercises.map((e) => e.exerciseId)}
-        onPick={(ids) =>
-          update((a) => ({
-            ...a,
-            exercises: [
-              ...a.exercises,
-              ...ids.map((id) => {
-                const last = lastSetsFor(state.sessions, id)
-                const ref = last?.[0]
-                return {
-                  exerciseId: id,
-                  restSec: 90,
-                  sets: Array.from({ length: 3 }, (): SetLog => ({ kg: ref?.kg ?? 0, reps: ref?.reps ?? 10, done: false })),
-                }
-              }),
-            ],
-          }))
-        }
+        onPick={(ids) => update((a) => ({ ...a, exercises: [...a.exercises, ...ids.map((id) => newExercise(state.sessions, id))] }))}
+      />
+
+      <PlateSheet
+        open={plates !== null && !!plateSet}
+        kg={plateSet?.kg ?? 0}
+        exercise={exerciseById(plateEx?.exerciseId ?? '')?.name ?? ''}
+        onClose={() => setPlates(null)}
+        onChange={(kg) => plates && setField(plates.ei, plates.si, { kg })}
       />
 
       <FinishSheet
@@ -360,40 +537,28 @@ export function ActiveWorkout() {
         onClose={() => setFinishing(false)}
         active={active}
         durationSec={elapsed}
-        onConfirm={(intensity) => {
-          const p = state.profile
-          const weight = p?.weightKg ?? 75
+        onConfirm={(intensity, routineName) => {
           const done = active.exercises
-            .map((e) => ({ exerciseId: e.exerciseId, sets: e.sets.filter((s) => s.done) }))
+            .map((e) => ({ exerciseId: e.exerciseId, restSec: e.restSec, sets: e.sets.filter((s) => s.done) }))
             .filter((e) => e.sets.length > 0)
           const durationSec = Math.max(60, Math.round(elapsed))
-          const kcal = gymKcal(intensity, weight, durationSec)
-          const prs = done.flatMap((e) =>
-            e.sets.filter((s) => s.pr).map((s) => ({ exercise: exerciseById(e.exerciseId)?.name ?? e.exerciseId, kind: s.pr! })),
-          )
+          const kcal = workoutKcal(done, weight)
+          const prs = done.flatMap((e) => e.sets.filter((s) => s.pr).map((s) => ({ exercise: exerciseById(e.exerciseId)?.name ?? e.exerciseId, e1rm: Math.round(epley(s.kg, s.reps)) })))
           const vol = sessionVolume(done)
-          addSession({
-            date: todayKey(),
-            routineName: active.routineName,
-            startedAt: active.startedAt,
-            durationSec,
-            intensity,
-            kcal,
-            volume: vol,
-            prCount: prs.length,
-            exercises: done,
-          })
+          addSession({ date: todayKey(), routineName: active.routineName, startedAt: active.startedAt, durationSec, intensity, kcal, volume: vol, prCount: prs.length, exercises: done })
+          // optional: keep this session's exercises as one of YOUR routines
+          if (routineName.trim()) {
+            saveRoutine({
+              id: uid(),
+              name: routineName.trim(),
+              program: 'Mis rutinas',
+              exercises: done.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets.length, reps: Math.round(e.sets.reduce((a, s) => a + s.reps, 0) / e.sets.length), restSec: e.restSec ?? 90 })),
+            })
+          }
           haptic([30, 60, 30, 60, 100])
           setActive(null)
           setFinishing(false)
-          ui.setSummary({
-            routineName: active.routineName,
-            durationSec,
-            kcal,
-            volume: vol,
-            sets: done.reduce((n, e) => n + e.sets.length, 0),
-            prs,
-          })
+          ui.setSummary({ routineName: active.routineName, durationSec, kcal, volume: vol, sets: done.reduce((n, e) => n + e.sets.length, 0), prs })
         }}
       />
 
@@ -404,7 +569,7 @@ export function ActiveWorkout() {
             Seguir
           </button>
           <button
-            className="btn bg-fire/90 text-black"
+            className="btn bg-fire text-black"
             onClick={() => {
               setDiscarding(false)
               setActive(null)
@@ -418,24 +583,15 @@ export function ActiveWorkout() {
   )
 }
 
-function FinishSheet({
-  open,
-  onClose,
-  active,
-  durationSec,
-  onConfirm,
-}: {
-  open: boolean
-  onClose: () => void
-  active: Active
-  durationSec: number
-  onConfirm: (i: Intensity) => void
-}) {
+function FinishSheet({ open, onClose, active, durationSec, onConfirm }: { open: boolean; onClose: () => void; active: Active; durationSec: number; onConfirm: (i: Intensity, routineName: string) => void }) {
   const { state } = useStore()
-  const [intensity, setIntensity] = useState<Intensity>('moderate')
-  const weight = state.profile?.weightKg ?? 75
+  const [routineName, setRoutineName] = useState('')
+  const weight = state.profile?.weightKg ?? DEFAULT_WEIGHT_KG
   const done = active.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)
   const dur = Math.max(60, Math.round(durationSec))
+  const vol = sessionVolume(active.exercises)
+  const intensity = suggestIntensity(vol, dur / 60)
+  const total = workoutKcal(active.exercises, weight)
 
   return (
     <Sheet open={open} onClose={onClose} title="Terminar entreno" z={80}>
@@ -448,39 +604,38 @@ function FinishSheet({
         </>
       ) : (
         <div className="space-y-5">
-          <div>
-            <p className="label mb-2">Intensidad percibida</p>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.keys(INTENSITY_LABELS) as Intensity[]).map((k) => (
-                <button
-                  key={k}
-                  onClick={() => setIntensity(k)}
-                  className={cn(
-                    'rounded-2xl border py-3 text-center transition active:scale-95',
-                    intensity === k ? 'border-neon/60 bg-neon/15 text-white' : 'border-line bg-white/[0.03] text-white/55',
-                  )}
-                >
-                  <div className="text-[14px] font-bold">{INTENSITY_LABELS[k]}</div>
-                  <div className="num text-[11px] text-white/40">MET {GYM_MET[k]}</div>
-                </button>
-              ))}
-            </div>
-          </div>
           <div className="rounded-2xl border border-fire/25 bg-fire/[0.07] p-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="label !text-fire/80">Calorías quemadas</div>
-                <div className="num text-[11px] text-white/40">
-                  {GYM_MET[intensity]} MET × {weight} kg × {(dur / 3600).toFixed(2)} h
+                <div className="label !text-fire/80">Calorías quemadas (aprox.)</div>
+                <div className="num mt-1 text-[11px] text-white/40">
+                  {weight} kg · {fmt(vol)} kg levantados · {Math.round(dur / 60)} min
                 </div>
               </div>
               <div className="num flex items-center gap-1 text-[34px] font-bold text-fire">
                 <Flame size={22} />
-                {fmt(gymKcal(intensity, weight, dur))}
+                {fmt(total)}
               </div>
             </div>
+            <ul className="mt-3 space-y-1.5 border-t border-fire/15 pt-3">
+              {active.exercises
+                .filter((e) => e.sets.some((s) => s.done))
+                .map((e, i) => (
+                  <li key={i} className="flex items-center justify-between gap-3 text-[12.5px]">
+                    <span className="min-w-0 truncate text-white/70">{exerciseById(e.exerciseId)?.name ?? e.exerciseId}</span>
+                    <span className="num shrink-0 text-white/45">
+                      {e.sets.filter((s) => s.done).length} series · <b className="text-fire">~{exerciseSetsKcal(exerciseMet(e.exerciseId), weight, e.sets)} kcal</b>
+                    </span>
+                  </li>
+                ))}
+            </ul>
+            <p className="num mt-2 text-[10.5px] text-white/30">0,0175 × MET (6,0 multiarticular · 4,0 aislamiento) × kg × tiempo + trabajo mecánico</p>
           </div>
-          <button className="btn-violet w-full" onClick={() => onConfirm(intensity)}>
+          <label className="block">
+            <span className="label">Guardar como rutina (opcional)</span>
+            <input className="input mt-1.5" placeholder="Ej. Pecho y tríceps" value={routineName} onChange={(e) => setRoutineName(e.target.value)} />
+          </label>
+          <button className="btn-violet w-full" onClick={() => onConfirm(intensity, routineName)}>
             Guardar y sumar al balance del día
           </button>
         </div>

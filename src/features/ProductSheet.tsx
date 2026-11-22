@@ -102,7 +102,7 @@ function ProductBody({ product, meal: initialMeal, date, onDone }: { product: Fo
         <div className="num grid grid-cols-4 gap-2 text-center">
           <Cell v={product.per100.kcal} l="kcal" c="#F4F6FA" />
           <Cell v={product.per100.protein} l="prot." c="#10B981" suffix="g" />
-          <Cell v={product.per100.carbs} l="carbos" c="#F59E0B" suffix="g" />
+          <Cell v={product.per100.carbs} l="carbos" c="#F97316" suffix="g" />
           <Cell v={product.per100.fat} l="grasas" c="#8B5CF6" suffix="g" />
         </div>
       </div>

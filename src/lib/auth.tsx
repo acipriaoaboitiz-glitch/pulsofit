@@ -9,24 +9,35 @@ import { todayKey } from './utils'
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'error'
 
+export interface AuthResult {
+  error?: string
+  info?: string
+}
+
+const NO_CLOUD: AuthResult = { error: 'La sincronización no está disponible ahora mismo. Inténtalo más tarde.' }
+const friendly = (m: string): string =>
+  /invalid login/i.test(m) ? 'Email o contraseña incorrectos.' : /already registered|already been registered/i.test(m) ? m : /password/i.test(m) && /6|short|weak/i.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit|too many/i.test(m) ? 'Demasiados intentos, espera un momento.' : m
+
 interface AuthCtx {
   session: Session | null
+  /** true until the stored session has been read (avoids flashing the login screen) */
+  loading: boolean
   email: string | null
   cloud: boolean
   status: SyncStatus
   error: string | null
-  signInEmail: (email: string) => Promise<string | null>
-  signInGoogle: () => Promise<string | null>
+  signInPassword: (email: string, password: string) => Promise<AuthResult>
   signOut: () => Promise<void>
   syncNow: () => void
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
-const OWNER_KEY = 'pulso.owner'
+const OWNER_KEY = 'apex.owner'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const store = useStore()
   const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(cloudEnabled)
   const [status, setStatus] = useState<SyncStatus>('off')
   const [error, setError] = useState<string | null>(null)
   const stateRef = useRef(store.state)
@@ -37,7 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Session bootstrap
   useEffect(() => {
     if (!supabase) return
-    void supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => setSession(data.session))
+      .catch(() => undefined)
+      .finally(() => setLoading(false))
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
@@ -59,9 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(OWNER_KEY, userId)
       const res = await syncAll(supabase, userId, stateRef.current, computeTargets, todayKey())
       store.dispatch({ t: 'merge', patch: res.patch, at: res.at, sentTomb: res.sentTomb })
-      if (res.aiCount !== null) {
-        const ai = stateRef.current.ai
-        store.bumpAi(Math.max(res.aiCount, ai.day === todayKey() ? ai.count : 0))
+      if (res.ai) {
+        const cur = stateRef.current.ai
+        const same = cur.day === todayKey()
+        store.dispatch({
+          t: 'ai',
+          ai: { day: todayKey(), photo: Math.max(res.ai.photo, same ? cur.photo : 0), text: Math.max(res.ai.text, same ? cur.text : 0) },
+        })
       }
       setError(null)
       setStatus('idle')
@@ -100,25 +119,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthCtx>(
     () => ({
       session,
+      loading,
       email: session?.user.email ?? null,
       cloud: cloudEnabled,
       status,
       error,
-      signInEmail: async (email) => {
-        if (!supabase) return 'Supabase no está configurado.'
-        const { error: err } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: window.location.origin },
-        })
-        return err ? err.message : null
-      },
-      signInGoogle: async () => {
-        if (!supabase) return 'Supabase no está configurado.'
-        const { error: err } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo: window.location.origin },
-        })
-        return err ? err.message : null
+      signInPassword: async (email, password) => {
+        if (!supabase) return NO_CLOUD
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+        return err ? { error: friendly(err.message) } : {}
       },
       signOut: async () => {
         await supabase?.auth.signOut()
@@ -126,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       syncNow: () => void run(),
     }),
-    [session, status, error, run],
+    [session, loading, status, error, run],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

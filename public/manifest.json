@@ -1,14 +1,14 @@
 {
-  "name": "PULSO · Nutrición y Entreno",
+  "name": "PULSO · Entreno, Nutrición y Pasos",
   "short_name": "PULSO",
-  "description": "Nutrición, escáner de comida, hidratación, actividad y gimnasio. 100% gratis.",
+  "description": "Entrenamiento dinámico, escáner IA de comida, pasos e hidratación. 100% gratis.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#080A0F",
-  "theme_color": "#080A0F",
+  "background_color": "#05070B",
+  "theme_color": "#05070B",
   "lang": "es",
   "categories": [
     "health",

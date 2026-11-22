@@ -12,8 +12,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "resolveJsonModule": true,
-    "types": ["vite/client", "node"]
+    "resolveJsonModule": true
   },
-  "include": ["src", "api", "vite.config.ts"]
+  "include": ["src", "api", "vite.config.ts", "capacitor.config.ts"]
 }

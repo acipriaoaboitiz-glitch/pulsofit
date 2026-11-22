@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Camera, Check, Droplets, Dumbbell, Footprints, ScanBarcode } from 'lucide-react'
+import { Camera, Check, Droplets, Footprints, ScanBarcode, Sparkles } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useUI } from '../lib/ui'
 import { useStore } from '../lib/store'
@@ -15,18 +15,29 @@ interface Item {
 }
 
 const ITEMS: Item[] = [
+  { id: 'magic', label: 'Barra Mágica (texto o voz)', color: '#A78BFA', fg: '#150a3a', icon: Sparkles },
   { id: 'scan', label: 'Escanear código', color: '#10B981', fg: '#04130d', icon: ScanBarcode },
-  { id: 'photo', label: 'Foto plato IA', color: '#8B5CF6', fg: '#fff', icon: Camera },
-  { id: 'water', label: '+250 ml agua', color: '#38BDF8', fg: '#04131d', icon: Droplets },
-  { id: 'steps', label: 'Pasos / Cardio', color: '#F59E0B', fg: '#1c1200', icon: Footprints },
-  { id: 'workout', label: 'Empezar entreno', color: '#A78BFA', fg: '#150a3a', icon: Dumbbell },
+  { id: 'photo', label: 'Foto al plato IA', color: '#8B5CF6', fg: '#fff', icon: Camera },
+  { id: 'water', label: '+250 ml agua', color: '#06B6D4', fg: '#021a1f', icon: Droplets },
+  { id: 'steps', label: 'Pasos / Cardio', color: '#F97316', fg: '#1c1200', icon: Footprints },
 ]
 
-const ANGLES = [-158, -124, -90, -56, -22]
-const RADIUS = 140
+/** true on desktop (≥1024 px), where the + menu becomes a vertical popover next to the side navigation */
+function useDesktop(): boolean {
+  const q = '(min-width: 1024px)'
+  const [d, setD] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
+  useEffect(() => {
+    const m = window.matchMedia(q)
+    const on = (): void => setD(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return d
+}
 
 export function QuickMenu() {
-  const { sheet, open, close, setTab } = useUI()
+  const desktop = useDesktop()
+  const { sheet, open, close } = useUI()
   const { addWater, aiRemaining } = useStore()
   const isOpen = sheet?.name === 'quick'
   const [watered, setWatered] = useState(false)
@@ -44,65 +55,86 @@ export function QuickMenu() {
       setWatered(true)
       return
     }
-    if (id === 'steps') {
-      setTab('actividad')
-      close()
-      return
-    }
-    open(id === 'workout' ? 'start' : (id as 'scan' | 'photo'))
+    open(id === 'magic' ? 'magic' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo'))
+  }
+
+  if (desktop) {
+    return (
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div key="backdrop" className="fixed inset-0 z-[30] bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />
+            <motion.div
+              key="list"
+              role="menu"
+              aria-label="Acciones rápidas"
+              initial={{ opacity: 0, x: -10, scale: 0.97 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+              className="fixed left-[268px] top-[84px] z-[45] w-[270px] rounded-2xl border border-line bg-[#0f131c] p-1.5 shadow-2xl"
+            >
+              {ITEMS.map((it) => {
+                const Icon = it.id === 'water' && watered ? Check : it.icon
+                return (
+                  <button key={it.id} role="menuitem" onClick={() => run(it.id)} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-white/[0.06]">
+                    <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: it.color, color: it.fg }}>
+                      <Icon size={20} strokeWidth={2.4} />
+                    </span>
+                    <span className="flex-1 text-[14px] font-bold">{it.id === 'water' && watered ? '¡Añadido!' : it.label}</span>
+                    {it.id === 'photo' && <span className="num rounded-full bg-neon/20 px-2 py-0.5 text-[11px] font-bold text-violet-200">{aiRemaining}/3</span>}
+                  </button>
+                )
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    )
   }
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
+          <motion.div key="backdrop" className="fixed inset-0 z-[30] bg-black/70 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={close} />
           <motion.div
-            key="backdrop"
-            className="fixed inset-0 z-[30] bg-black/70 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={close}
-          />
-          <div
-            key="fan"
-            className="pointer-events-none fixed left-1/2 z-[35] h-0 w-0"
-            style={{ bottom: 'calc(98px + var(--safe-bottom))' }}
+            key="grid"
+            role="menu"
+            aria-label="Acciones rápidas"
+            initial={{ y: 40, opacity: 0, scale: 0.92 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 30, opacity: 0, scale: 0.94 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            className="card fixed left-1/2 z-[35] w-[min(92vw,420px)] -translate-x-1/2 p-3"
+            style={{ bottom: 'calc(104px + var(--safe-bottom))', transformOrigin: '50% 100%' }}
           >
-            {ITEMS.map((it, i) => {
-              const a = (ANGLES[i] * Math.PI) / 180
-              const x = Math.cos(a) * RADIUS
-              const y = Math.sin(a) * RADIUS
-              const Icon = it.id === 'water' && watered ? Check : it.icon
-              return (
-                <motion.button
-                  key={it.id}
-                  onClick={() => run(it.id)}
-                  initial={{ x: 0, y: 0, scale: 0.2, opacity: 0 }}
-                  animate={{ x, y, scale: 1, opacity: 1 }}
-                  exit={{ x: 0, y: 0, scale: 0.2, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 380, damping: 22, delay: i * 0.035 }}
-                  className="pointer-events-auto absolute -ml-[30px] -mt-[30px] flex w-[60px] flex-col items-center"
-                  aria-label={it.label}
-                >
-                  <span
-                    className="relative grid h-[60px] w-[60px] place-items-center rounded-full shadow-[0_10px_30px_-6px_rgba(0,0,0,0.8)] active:scale-90"
-                    style={{ background: it.color, color: it.fg, boxShadow: `0 10px 30px -8px ${it.color}` }}
+            <div className="grid grid-cols-6 gap-2.5">
+              {ITEMS.map((it, i) => {
+                const Icon = it.id === 'water' && watered ? Check : it.icon
+                return (
+                  <motion.button
+                    key={it.id}
+                    role="menuitem"
+                    onClick={() => run(it.id)}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: 'spring', damping: 24, stiffness: 340, delay: 0.04 + i * 0.04 }}
+                    whileTap={{ scale: 0.94 }}
+                    aria-label={it.label}
+                    className={`relative flex flex-col items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.04] px-1.5 py-3.5 ${i < 3 ? 'col-span-2' : 'col-span-3'}`}
+                    style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)' }}
                   >
-                    <Icon size={26} strokeWidth={2.4} />
-                    {it.id === 'photo' && (
-                      <span className="num absolute -right-1 -top-1 rounded-full bg-[#0d1017] px-1.5 py-0.5 text-[10px] font-bold text-neon ring-1 ring-neon/50">
-                        {aiRemaining}/3
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-1.5 w-[76px] text-center text-[11px] font-bold leading-tight text-white">
-                    {it.id === 'water' && watered ? '¡Añadido!' : it.label}
-                  </span>
-                </motion.button>
-              )
-            })}
-          </div>
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: `linear-gradient(145deg, ${it.color}, ${it.color}bb)`, color: it.fg, boxShadow: `0 10px 24px -8px ${it.color}` }}>
+                      <Icon size={24} strokeWidth={2.3} />
+                    </span>
+                    <span className="text-center text-[11px] font-bold leading-tight">{it.id === 'water' && watered ? '¡Añadido!' : it.label}</span>
+                    {it.id === 'photo' && <span className="num absolute right-1.5 top-1.5 rounded-full bg-neon/25 px-1.5 py-0.5 text-[9px] font-bold text-violet-200">{aiRemaining}/3</span>}
+                  </motion.button>
+                )
+              })}
+            </div>
+          </motion.div>
         </>
       )}
     </AnimatePresence>

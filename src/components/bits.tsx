@@ -4,45 +4,37 @@ import { cn, fmt } from '../lib/utils'
 
 export function PageHeader({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <header className="flex items-end justify-between px-5 pb-4 pt-[calc(18px+var(--safe-top))]">
+    <header className="flex items-end justify-between px-5 pb-4 pt-[calc(18px+var(--safe-top))] lg:px-0 lg:pb-6 lg:pt-0">
       <div>
         {sub && <p className="label mb-1">{sub}</p>}
-        <h1 className="text-[28px] font-extrabold leading-none tracking-tight">{title}</h1>
+        <h1 className="text-[28px] font-extrabold leading-none tracking-tight lg:text-[36px]">{title}</h1>
       </div>
       {right}
     </header>
   )
 }
 
-export function MacroBar({
-  label,
-  value,
-  target,
-  color,
-}: {
-  label: string
-  value: number
-  target: number
-  color: string
-}) {
+export function MacroBar({ label, value, target, color }: { label: string; value: number; target: number; color: string }) {
   const pct = target > 0 ? Math.min(1, value / target) : 0
   const over = value > target
   return (
     <div>
-      <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-[12px] font-bold text-white/70">{label}</span>
-        <span className="num text-[12px] text-white/50">
-          <b className={cn('text-[13px]', over ? 'text-fire' : 'text-white')}>{fmt(value)}</b> / {fmt(target)} g
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="text-[12px] font-semibold text-white/75">{label}</span>
+        <span className="num text-[12px] text-white/40">
+          <b className={cn('text-[14px]', over ? 'text-fire' : 'text-white')}>{fmt(value)}</b> / {fmt(target)} g
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+      <div className="h-[7px] rounded-full bg-white/[0.06]">
         <motion.div
-          className="h-full rounded-full"
-          style={{ background: color, boxShadow: `0 0 12px ${color}99` }}
+          className="relative h-full rounded-full"
+          style={{ background: `linear-gradient(90deg, ${color}55, ${color})`, boxShadow: `0 0 14px -2px ${color}88` }}
           initial={{ width: 0 }}
           animate={{ width: `${pct * 100}%` }}
           transition={{ type: 'spring', stiffness: 80, damping: 18 }}
-        />
+        >
+          {pct > 0.03 && <span className="absolute -right-1 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-white" style={{ boxShadow: `0 0 10px 2px ${color}` }} />}
+        </motion.div>
       </div>
     </div>
   )

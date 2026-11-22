@@ -14,6 +14,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
+/** server env without depending on Node typings */
+const ENV: Record<string, string | undefined> = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
+
 const GUEST_LIMIT = 20
 const MODEL = 'gemini-2.5-flash'
 
@@ -137,12 +140,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (text.length > 600) return res.status(413).json({ error: 'Texto demasiado largo' })
 
   // simulated mode: no key configured → free, nothing consumed
-  const key = process.env.GEMINI_API_KEY
+  const key = ENV.GEMINI_API_KEY
   if (!key) return res.status(200).json({ simulado: true, items: [] })
 
   // quota
-  const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL
-  const supaAnon = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY
+  const supaUrl = ENV.VITE_SUPABASE_URL ?? ENV.SUPABASE_URL
+  const supaAnon = ENV.VITE_SUPABASE_ANON_KEY ?? ENV.SUPABASE_ANON_KEY
   const auth = req.headers.authorization
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
   if (token && supaUrl && supaAnon) {

@@ -5,7 +5,7 @@
  *
  * - The Gemini API key lives only here (server side).
  * - Signed-in users: 3 scans/day enforced in Postgres through the SECURITY DEFINER
- *   function `consume_ai_scan` (called with the user's own JWT, so RLS/auth.uid() apply).
+ *   function `consume_ai` (called with the user's own JWT, so RLS/auth.uid() apply).
  * - Guests: best-effort per-IP limit (in-memory) + the client-side counter.
  * - Without GEMINI_API_KEY the endpoint answers with a realistic simulated result.
  *
@@ -13,6 +13,9 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+
+/** server env without depending on Node typings */
+const ENV: Record<string, string | undefined> = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 
 const DAILY_LIMIT = 3
 const MODEL = 'gemini-2.5-flash'
@@ -130,15 +133,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (image.length > 4_000_000) return res.status(413).json({ error: 'Imagen demasiado grande' })
 
   // ---- simulated mode (no key configured: free, nothing is consumed) ----
-  const key = process.env.GEMINI_API_KEY
+  const key = ENV.GEMINI_API_KEY
   if (!key) {
     const mock = { ...MOCKS[Math.floor(Math.random() * MOCKS.length)], simulado: true }
     return res.status(200).json(mock)
   }
 
   // ---- quota ----
-  const supaUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL
-  const supaAnon = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY
+  const supaUrl = ENV.VITE_SUPABASE_URL ?? ENV.SUPABASE_URL
+  const supaAnon = ENV.VITE_SUPABASE_ANON_KEY ?? ENV.SUPABASE_ANON_KEY
   const auth = req.headers.authorization
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
 
@@ -147,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    const { data, error } = await sb.rpc('consume_ai_scan', { p_limit: DAILY_LIMIT })
+    const { data, error } = await sb.rpc('consume_ai', { p_kind: 'photo' })
     if (error) return res.status(401).json({ error: 'Sesión no válida' })
     if (typeof data === 'number' && data < 0) return res.status(429).json({ error: 'Límite diario alcanzado' })
   } else {
