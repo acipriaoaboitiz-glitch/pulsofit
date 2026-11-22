@@ -52,7 +52,7 @@ function describe(it: MagicItem): { icon: typeof Utensils; title: string; sub: s
   }
 }
 
-export function MagicBar({ className }: { className?: string }) {
+export function MagicBar({ className, suggestions }: { className?: string; suggestions?: string[] }) {
   const { state, addFood, addWater, addSteps, addCardio, addSession, addCustomExercise, setActive, aiTextRemaining, bumpAi } = useStore()
   const [text, setText] = useState('')
   const [aiItems, setAiItems] = useState<MagicItem[] | null>(null)
@@ -200,7 +200,7 @@ export function MagicBar({ className }: { className?: string }) {
 
   return (
     <div className={className}>
-      <div className={cn('flex items-center gap-2 rounded-2xl border bg-card p-1.5 pl-3.5 transition-colors', listening ? 'border-neon/70' : 'border-line focus-within:border-emerald/50')}>
+      <div className={cn('flex items-center gap-2 rounded-[20px] border bg-white/[0.04] p-1.5 pl-3.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] transition-colors', listening ? 'border-neon/70' : 'border-white/[0.09] focus-within:border-emerald/50')}>
         <Sparkles size={18} className="shrink-0 text-emerald" />
         <input
           ref={inputRef}
@@ -223,6 +223,25 @@ export function MagicBar({ className }: { className?: string }) {
           </button>
         )}
       </div>
+
+      {suggestions && !text && (
+        <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:px-0">
+          {suggestions.map((sg) => (
+            <button
+              key={sg}
+              onClick={() => {
+                haptic(8)
+                setText(sg)
+                inputRef.current?.focus()
+              }}
+              className="chip !py-1.5 !text-[12px] whitespace-nowrap"
+            >
+              <Sparkles size={11} className="text-emerald" />
+              {sg}
+            </button>
+          ))}
+        </div>
+      )}
 
       <AnimatePresence>
         {done && (

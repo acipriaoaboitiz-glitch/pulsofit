@@ -8,11 +8,12 @@ import { ExercisePicker } from './ExercisePicker'
 import { PlateSheet } from './PlateSheet'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
-import { exerciseById, isBarbell } from '../lib/exercises'
-import { bestE1rm, isPr, newExercise, sessionVolume } from '../lib/workout'
+import { GROUPS, GROUP_COLOR, exerciseById, groupOf, isBarbell } from '../lib/exercises'
+import type { Group } from '../lib/exercises'
+import { bestE1rm, isPr, lastSetsFor, newExercise, sessionVolume } from '../lib/workout'
 import { GYM_MET, INTENSITY_LABELS, epley, gymKcal, suggestIntensity } from '../lib/calc'
 import type { ActiveWorkout as Active, Intensity, SetLog } from '../lib/types'
-import { beep, cn, fmt, fmtClock, haptic, primeAudio, todayKey, uid } from '../lib/utils'
+import { beep, cn, fmt, fmtClock, fmtHms, haptic, primeAudio, todayKey, uid } from '../lib/utils'
 
 const REST_PRESETS = [60, 90, 120, 180]
 
@@ -48,7 +49,7 @@ function SetRow({ index, set, barbell, canCopy, onChange, onCopy, onToggle, onPl
   const e1 = epley(set.kg, set.reps)
   const bump = (d: number) => onChange({ kg: Math.max(0, Math.round((set.kg + d) * 100) / 100) })
   return (
-    <div className={cn('rounded-2xl border p-2.5 transition-colors', set.done ? 'border-emerald/30 bg-emerald/[0.07]' : 'border-line bg-white/[0.02]')}>
+    <div className={cn('rounded-2xl border p-2.5 transition-colors', set.done ? (set.pr ? 'border-neon/45 bg-neon/[0.11] shadow-[0_0_24px_-10px_rgba(139,92,246,0.9)]' : 'border-emerald/35 bg-emerald/[0.08] shadow-[0_0_24px_-12px_rgba(16,185,129,0.9)]') : 'border-white/[0.07] bg-white/[0.025]')}>
       {/* kg */}
       <div className="flex items-center gap-1">
         <span
@@ -125,7 +126,7 @@ function SetRow({ index, set, barbell, canCopy, onChange, onCopy, onToggle, onPl
           onClick={onToggle}
           aria-label={set.done ? 'Desmarcar serie' : 'Completar serie'}
           aria-pressed={set.done}
-          className={cn('ml-auto grid h-[52px] w-[52px] shrink-0 place-items-center rounded-2xl transition-colors', set.done ? 'bg-emerald text-[#04130d] shadow-[0_6px_22px_-6px_rgba(16,185,129,0.8)]' : 'bg-white/[0.09] text-white/45')}
+          className={cn('ml-auto grid h-14 w-14 shrink-0 place-items-center rounded-[18px] transition-colors', set.done ? (set.pr ? 'bg-neon text-white shadow-[0_6px_22px_-6px_rgba(139,92,246,0.9)]' : 'bg-emerald text-[#04130d] shadow-[0_6px_22px_-6px_rgba(16,185,129,0.8)]') : 'border border-white/[0.1] bg-white/[0.07] text-white/40')}
         >
           <motion.span animate={{ scale: set.done ? [1, 1.35, 1] : 1 }} transition={{ duration: 0.3 }}>
             <Check size={26} strokeWidth={3.5} />
@@ -150,6 +151,7 @@ export function ActiveWorkout() {
   const active = state.active
   const [now, setNow] = useState(Date.now())
   const [picker, setPicker] = useState(false)
+  const [pickerGroup, setPickerGroup] = useState<Group | undefined>(undefined)
   const [finishing, setFinishing] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -219,7 +221,7 @@ export function ActiveWorkout() {
       setBurst((b) => b + 1)
       setToast(`NEW PR · ${exerciseById(ex.exerciseId)?.name ?? ''} · 1RM est. ${Math.round(epley(s.kg, s.reps))} kg`)
       window.setTimeout(() => setToast(null), 3400)
-    } else haptic(18)
+    } else haptic(20)
   }
 
   const addSet = (ei: number) =>
@@ -248,39 +250,57 @@ export function ActiveWorkout() {
     <motion.div className="fixed inset-0 z-[60] flex flex-col bg-obsidian" initial={{ y: '100%' }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 34 }}>
       {burst > 0 && <Confetti key={burst} />}
 
-      {/* header */}
-      <div className="border-b border-line px-4 pb-3 pt-[calc(14px+var(--safe-top))] lg:px-[max(1.5rem,calc((100%-1000px)/2))]">
+      {/* header: live session bar */}
+      <div className="px-4 pb-3 transition-[padding] duration-300 lg:px-[max(1.5rem,calc((100%-1000px)/2))]" style={{ paddingTop: resting || restDone ? "calc(68px + var(--safe-top))" : "calc(14px + var(--safe-top))" }}>
         <div className="flex items-center justify-between gap-3">
-          <button onClick={() => setDiscarding(true)} aria-label="Descartar entreno" className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-white/60 active:scale-90">
+          <button onClick={() => setDiscarding(true)} aria-label="Descartar entreno" className="grid h-10 w-10 place-items-center rounded-full border border-white/[0.08] bg-white/[0.05] text-white/60 active:scale-90">
             <X size={18} />
           </button>
           <div className="min-w-0 flex-1 text-center">
-            <div className="truncate text-[15px] font-extrabold">{active.routineName}</div>
-            <div className="num text-[13px] font-bold text-neon">{fmtClock(elapsed)}</div>
+            <div className="label flex items-center justify-center gap-1.5 !text-neon">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-neon opacity-70" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-neon" />
+              </span>
+              Sesión en vivo
+            </div>
+            <div className="mt-0.5 truncate text-[15px] font-extrabold">{active.routineName}</div>
           </div>
           <button className="btn-violet !rounded-full !px-4 !py-2.5 text-[14px]" onClick={() => setFinishing(true)}>
             Terminar
           </button>
         </div>
-        <div className="mt-3 flex items-center gap-3 text-[12px] text-white/50">
-          <span className="num">
-            <b className="text-white">{doneSets}</b>/{totalSets} series
-          </span>
-          <span className="num">
-            <b className="text-white">{fmt(volume)}</b> kg
-          </span>
-          <span className="num flex items-center gap-0.5 text-fire">
-            <Flame size={12} />
-            <b>{fmt(liveKcal)}</b>
-          </span>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-emerald transition-all" style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
+
+        <div className="card mt-3 grid grid-cols-3 divide-x divide-white/[0.07] py-3">
+          <div className="text-center">
+            <div className="label !text-[9px]">Tiempo</div>
+            <div className="num mt-1 text-[20px] font-bold leading-none text-violet-300">{fmtHms(elapsed)}</div>
+          </div>
+          <div className="text-center">
+            <div className="label !text-[9px]">Volumen</div>
+            <div className="num mt-1 text-[20px] font-bold leading-none">
+              {fmt(volume)}
+              <span className="ml-0.5 text-[10px] text-white/40">kg</span>
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="label !text-[9px]">Calorías</div>
+            <div className="num mt-1 flex items-center justify-center gap-0.5 text-[20px] font-bold leading-none text-fire">
+              <Flame size={14} />
+              {fmt(liveKcal)}
+            </div>
           </div>
         </div>
-        <div className="mt-2.5 flex items-center gap-2">
-          <Timer size={14} className="text-white/40" />
-          <span className="label">Descanso</span>
-          <div className="ml-auto flex gap-1.5">
+
+        <div className="mt-3 flex items-center gap-3">
+          <span className="num text-[11px] text-white/50">
+            <b className="text-white">{doneSets}</b>/{totalSets} series
+          </span>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald to-aqua transition-all" style={{ width: `${totalSets ? (doneSets / totalSets) * 100 : 0}%` }} />
+          </div>
+          <Timer size={13} className="text-white/40" />
+          <div className="flex gap-1">
             {REST_PRESETS.map((sec) => (
               <button
                 key={sec}
@@ -288,9 +308,9 @@ export function ActiveWorkout() {
                   haptic(6)
                   update((a) => ({ ...a, restTotal: sec, restEndsAt: a.restEndsAt ? Date.now() + sec * 1000 : null }))
                 }}
-                className={cn('num rounded-lg px-2.5 py-1.5 text-[12px] font-bold transition', active.restTotal === sec ? 'bg-neon text-white' : 'bg-white/[0.07] text-white/55')}
+                className={cn('num rounded-lg px-2 py-1 text-[11px] font-bold transition', active.restTotal === sec ? 'bg-neon text-white' : 'bg-white/[0.07] text-white/55')}
               >
-                {sec}s
+                {sec}
               </button>
             ))}
           </div>
@@ -303,14 +323,32 @@ export function ActiveWorkout() {
         {active.exercises.map((ex, ei) => {
           const def = exerciseById(ex.exerciseId)
           const best = bests.get(ex.exerciseId)
+          const grp = def ? groupOf(def.muscle) : undefined
+          const color = grp ? GROUP_COLOR[grp] : '#8B5CF6'
+          const prev = lastSetsFor(state.sessions, ex.exerciseId)
+          const top = prev ? [...prev].sort((a, b) => b.kg * b.reps - a.kg * a.reps)[0] : undefined
           return (
-            <section key={`${ex.exerciseId}-${ei}`} className="card p-3.5">
+            <section key={`${ex.exerciseId}-${ei}`} className="card overflow-hidden p-3.5">
+              <span aria-hidden className="absolute inset-y-4 left-0 w-[3px] rounded-r-full" style={{ background: color, boxShadow: `0 0 14px ${color}` }} />
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="min-w-0">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ background: `${color}1f`, color }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                      {grp ?? 'Otro'}
+                    </span>
+                    {top ? (
+                      <span className="num rounded-full bg-white/[0.06] px-2 py-0.5 text-[10.5px] text-white/65">
+                        Última vez: <b className="text-white">{top.kg > 0 ? `${top.kg}kg` : 'PC'} × {top.reps}</b>
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10.5px] text-white/45">Primera vez</span>
+                    )}
+                  </div>
                   <h3 className="truncate text-[16px] font-extrabold leading-tight">{def?.name ?? ex.exerciseId}</h3>
-                  <p className="num text-[12px] text-white/45">
-                    {def?.muscle} · {def?.equipment}
-                    {best ? <span className="ml-1.5 text-violet-300">· mejor 1RM {Math.round(best)} kg</span> : <span className="ml-1.5">· primera vez</span>}
+                  <p className="num text-[11.5px] text-white/40">
+                    {def?.equipment}
+                    {best ? <span className="ml-1.5 text-violet-300">· mejor 1RM {Math.round(best)} kg</span> : null}
                   </p>
                 </div>
                 <button aria-label="Quitar ejercicio" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/30 active:text-fire" onClick={() => update((a) => ({ ...a, exercises: a.exercises.filter((_, i) => i !== ei) }))}>
@@ -344,19 +382,36 @@ export function ActiveWorkout() {
           )
         })}
 
-        <button className="btn-ghost w-full lg:col-span-2" onClick={() => setPicker(true)}>
-          <Plus size={18} /> Añadir ejercicio
-        </button>
+        <section className="card p-4 lg:col-span-2">
+          <p className="label mb-2.5">Añadir ejercicio por músculo</p>
+          <div className="flex flex-wrap gap-2">
+            {GROUPS.map((g) => (
+              <button
+                key={g}
+                onClick={() => {
+                  haptic(8)
+                  setPickerGroup(g)
+                  setPicker(true)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold transition active:scale-95"
+                style={{ background: `${GROUP_COLOR[g]}14`, borderColor: `${GROUP_COLOR[g]}40`, color: GROUP_COLOR[g] }}
+              >
+                <Plus size={13} strokeWidth={3} />
+                {g}
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
 
       {/* PR toast */}
-      <div className="pointer-events-none absolute inset-x-0 top-[calc(78px+var(--safe-top))] z-10 flex justify-center px-4">
+      <div className="pointer-events-none absolute inset-x-0 bottom-[calc(24px+var(--safe-bottom))] z-10 flex justify-center px-4">
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ y: -80, opacity: 0, scale: 0.9 }}
+            initial={{ y: 80, opacity: 0, scale: 0.9 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -80, opacity: 0 }}
+            exit={{ y: 80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 24 }}
             className="pointer-events-auto flex w-full max-w-[560px] items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-500 to-neon p-3.5 text-white shadow-[0_12px_40px_-8px_rgba(139,92,246,0.9)]"
           >
@@ -367,48 +422,48 @@ export function ActiveWorkout() {
       </AnimatePresence>
       </div>
 
-      {/* floating circular rest timer */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-[calc(16px+var(--safe-bottom))] z-20 flex justify-center px-4">
-      <AnimatePresence>
-        {(resting || restDone) && (
-          <motion.div
-            initial={{ y: 60, opacity: 0, scale: 0.9 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 60, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="pointer-events-auto flex w-full max-w-[480px] items-center gap-3 rounded-[28px] border border-neon/30 bg-[#12101f]/95 p-2.5 pr-3 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.9)]"
-          >
-            <Ring size={64} stroke={6} value={resting ? rest / active.restTotal : restDone ? 1 : 0} color={restDone ? '#10B981' : '#8B5CF6'} glow={false}>
-              <span className="num text-[15px] font-bold">{resting ? fmtClock(Math.ceil(rest)) : '00:00'}</span>
-            </Ring>
-            <div className="min-w-0 flex-1">
+      {/* rest timer: Dynamic-Island style pill at the top */}
+      <div className="pointer-events-none absolute inset-x-0 top-[calc(8px+var(--safe-top))] z-30 flex justify-center px-4">
+        <AnimatePresence>
+          {(resting || restDone) && (
+            <motion.div
+              initial={{ y: -40, opacity: 0, scale: 0.6 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -40, opacity: 0, scale: 0.7 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/10 bg-black py-1.5 pl-1.5 pr-2 shadow-[0_18px_40px_-10px_rgba(0,0,0,0.95),0_0_0_1px_rgba(139,92,246,0.25)]"
+            >
+              <Ring size={46} stroke={5} value={resting ? rest / active.restTotal : restDone ? 1 : 0} gradient={restDone ? ['#10B981', '#06B6D4'] : ['#8B5CF6', '#C4B5FD']} glow={false}>
+                <span className="num text-[11px] font-bold">{resting ? fmtClock(Math.ceil(rest)) : '0:00'}</span>
+              </Ring>
               {resting ? (
                 <>
-                  <p className="label !text-neon">Descanso</p>
-                  <div className="mt-1.5 flex gap-1.5">
-                    <button className="num rounded-lg bg-white/[0.08] px-2.5 py-1.5 text-[12px] font-bold" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) - 15000 }))}>
-                      −15
-                    </button>
-                    <button className="num rounded-lg bg-white/[0.08] px-2.5 py-1.5 text-[12px] font-bold" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) + 15000 }))}>
-                      +15
-                    </button>
-                    <button className="rounded-lg bg-white/[0.08] px-2.5 py-1.5 text-[12px] font-bold" onClick={() => update((a) => ({ ...a, restEndsAt: null }))}>
-                      Saltar
-                    </button>
-                  </div>
+                  <span className="num w-[52px] text-[22px] font-bold leading-none">{fmtClock(Math.ceil(rest))}</span>
+                  <button className="num rounded-full bg-white/[0.09] px-2.5 py-1.5 text-[12px] font-bold active:scale-90" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) - 15000 }))}>
+                    −15s
+                  </button>
+                  <button className="num rounded-full bg-white/[0.09] px-2.5 py-1.5 text-[12px] font-bold active:scale-90" onClick={() => update((a) => ({ ...a, restEndsAt: (a.restEndsAt ?? Date.now()) + 15000 }))}>
+                    +15s
+                  </button>
+                  <button className="rounded-full bg-neon px-3 py-1.5 text-[12px] font-bold text-white active:scale-90" onClick={() => update((a) => ({ ...a, restEndsAt: null }))}>
+                    Saltar
+                  </button>
                 </>
               ) : (
-                <p className="text-[14px] font-extrabold text-emerald">¡Descanso terminado! Siguiente serie</p>
+                <span className="px-2 text-[13px] font-extrabold text-emerald">¡Siguiente serie!</span>
               )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <ExercisePicker
         open={picker}
-        onClose={() => setPicker(false)}
+        initialGroup={pickerGroup}
+        onClose={() => {
+          setPicker(false)
+          setPickerGroup(undefined)
+        }}
         exclude={active.exercises.map((e) => e.exerciseId)}
         onPick={(ids) => update((a) => ({ ...a, exercises: [...a.exercises, ...ids.map((id) => newExercise(state.sessions, id))] }))}
       />

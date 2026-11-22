@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Activity, Dumbbell, Home, Plus, Salad } from 'lucide-react'
+import { Dumbbell, Home, LineChart, Plus, Salad } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useUI } from '../lib/ui'
 import type { Tab } from '../lib/ui'
@@ -9,7 +9,7 @@ const TABS: { id: Tab; label: string; icon: ComponentType<{ size?: number; strok
   { id: 'hoy', label: 'Hoy', icon: Home },
   { id: 'nutricion', label: 'Nutrición', icon: Salad },
   { id: 'gimnasio', label: 'Gimnasio', icon: Dumbbell },
-  { id: 'actividad', label: 'Actividad', icon: Activity },
+  { id: 'actividad', label: 'Progreso', icon: LineChart },
 ]
 
 export function TabBar() {
@@ -50,7 +50,7 @@ export function TabBar() {
       className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 lg:hidden"
       style={{ paddingBottom: 'calc(10px + var(--safe-bottom))' }}
     >
-      <div className="relative flex w-full max-w-[480px] items-stretch rounded-[28px] border border-line bg-[#0d1017]/90 px-1 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+      <div className="relative flex w-full max-w-[480px] items-stretch rounded-[30px] border border-white/[0.09] bg-[#0B0F17]/85 px-1.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),0_24px_50px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
         {item(TABS[0])}
         {item(TABS[1])}
         <div className="w-[92px] shrink-0" />
@@ -65,10 +65,11 @@ export function TabBar() {
             if (quickOpen) close()
             else open('quick')
           }}
+          style={{ backgroundImage: 'linear-gradient(135deg, #10B981 10%, #06B6D4 95%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 36px -4px rgba(16,185,129,0.85), 0 0 30px -4px rgba(6,182,212,0.6)' }}
           whileTap={{ scale: 0.9 }}
           animate={{ rotate: quickOpen ? 135 : 0 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          className="grid h-[62px] w-[62px] place-items-center rounded-full bg-emerald text-[#04130d] shadow-[0_10px_34px_-4px_rgba(16,185,129,0.85)] ring-4 ring-[#07090E]"
+          className="grid h-[62px] w-[62px] place-items-center rounded-full text-[#03130d] ring-4 ring-[#05070B]"
         >
           <Plus size={30} strokeWidth={3} />
         </motion.button>

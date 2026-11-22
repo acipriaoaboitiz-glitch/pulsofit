@@ -4,10 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        obsidian: '#07090E',
-        card: '#0F131C',
-        raised: '#151A25',
-        line: 'rgba(255,255,255,0.07)',
+        obsidian: '#05070B',
+        card: '#0B0F17',
+        raised: '#111724',
+        line: 'rgba(255,255,255,0.08)',
         emerald: { DEFAULT: '#10B981', soft: 'rgba(16,185,129,0.14)' },
         fire: { DEFAULT: '#F97316', soft: 'rgba(249,115,22,0.14)' },
         aqua: { DEFAULT: '#06B6D4', soft: 'rgba(6,182,212,0.14)' },

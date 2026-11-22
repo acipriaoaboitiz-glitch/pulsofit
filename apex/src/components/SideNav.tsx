@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Activity, Cloud, CloudOff, Dumbbell, Home, Plus, Salad, UserRound } from 'lucide-react'
+import { Cloud, CloudOff, Dumbbell, Home, LineChart, Plus, Salad, UserRound } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { useUI } from '../lib/ui'
 import type { Tab } from '../lib/ui'
@@ -10,7 +10,7 @@ const TABS: { id: Tab; label: string; icon: ComponentType<{ size?: number; strok
   { id: 'hoy', label: 'Hoy', icon: Home },
   { id: 'nutricion', label: 'Nutrición', icon: Salad },
   { id: 'gimnasio', label: 'Gimnasio', icon: Dumbbell },
-  { id: 'actividad', label: 'Actividad', icon: Activity },
+  { id: 'actividad', label: 'Progreso', icon: LineChart },
 ]
 
 /** Barra lateral de escritorio (≥1024 px). En móvil se usa la barra inferior. */

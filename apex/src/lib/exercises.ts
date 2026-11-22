@@ -14,6 +14,17 @@ export function groupOf(m: Muscle): Group {
   return m
 }
 
+/** Colour tag per muscle group (workout cards, chips). */
+export const GROUP_COLOR: Record<Group, string> = {
+  Pecho: '#F43F5E',
+  Espalda: '#06B6D4',
+  Hombros: '#F59E0B',
+  Bíceps: '#10B981',
+  Tríceps: '#8B5CF6',
+  Pierna: '#F97316',
+  Abdomen: '#EAB308',
+}
+
 export interface Exercise {
   id: string
   name: string

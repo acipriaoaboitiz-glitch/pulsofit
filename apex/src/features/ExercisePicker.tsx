@@ -15,19 +15,21 @@ interface Props {
   onPick: (ids: string[]) => void
   exclude?: string[]
   title?: string
+  /** open already filtered by this muscle group */
+  initialGroup?: Group
 }
 
-export function ExercisePicker({ open, onClose, onPick, exclude = [], title = 'Añadir ejercicio' }: Props) {
+export function ExercisePicker({ open, onClose, onPick, exclude = [], title = 'Añadir ejercicio', initialGroup }: Props) {
   return (
     <Sheet open={open} onClose={onClose} title={title} full z={70}>
-      {open && <PickerBody onClose={onClose} onPick={onPick} exclude={exclude} />}
+      {open && <PickerBody onClose={onClose} onPick={onPick} exclude={exclude} initialGroup={initialGroup} />}
     </Sheet>
   )
 }
 
-function PickerBody({ onClose, onPick, exclude }: Omit<Props, 'open' | 'title'> & { exclude: string[] }) {
+function PickerBody({ onClose, onPick, exclude, initialGroup }: Omit<Props, 'open' | 'title'> & { exclude: string[] }) {
   const { state, addCustomExercise } = useStore()
-  const [group, setGroup] = useState<Group | 'all'>('all')
+  const [group, setGroup] = useState<Group | 'all'>(initialGroup ?? 'all')
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
