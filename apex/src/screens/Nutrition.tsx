@@ -7,6 +7,9 @@ import { MEALS, addDays, fmt, haptic, prettyDate, todayKey } from '../lib/utils'
 import type { FoodLog, Meal } from '../lib/types'
 import { MacroBar, PageHeader } from '../components/bits'
 import { Ring } from '../components/Ring'
+import { MagicBar } from '../features/MagicBar'
+import { Sparkles } from 'lucide-react'
+import { defaultMeal } from '../lib/utils'
 
 function Entry({ f }: { f: FoodLog }) {
   const { updateFood, removeFood } = useStore()
@@ -80,10 +83,23 @@ function Entry({ f }: { f: FoodLog }) {
 }
 
 export function Nutrition() {
-  const { state, targets, totals, aiRemaining } = useStore()
+  const { state, targets, totals, aiRemaining, addFood } = useStore()
+  const [added, setAdded] = useState<string | null>(null)
   const ui = useUI()
   const [date, setDate] = useState(todayKey())
   const t = totals(date)
+
+  /** most repeated foods (last 60 days) with the amount you usually eat */
+  const usual = useMemo(() => {
+    const since = addDays(todayKey(), -60)
+    const by = new Map<string, { n: number; last: FoodLog }>()
+    for (const f of state.food) {
+      if (f.date < since) continue
+      const cur = by.get(f.name)
+      by.set(f.name, { n: (cur?.n ?? 0) + 1, last: !cur || f.u > cur.last.u ? f : cur.last })
+    }
+    return [...by.values()].filter((x) => x.n >= 2).sort((a, b) => b.n - a.n).slice(0, 8).map((x) => ({ ...x.last, n: x.n }))
+  }, [state.food])
 
   const byMeal = useMemo(() => {
     const out: Record<Meal, FoodLog[]> = { desayuno: [], comida: [], cena: [], snack: [] }
@@ -119,6 +135,36 @@ export function Nutrition() {
       />
 
       <div className="space-y-4">
+        <MagicBar />
+
+        {usual.length > 0 && (
+          <section>
+            <h2 className="label mb-2 flex items-center gap-1.5 px-1 !text-emerald">
+              <Sparkles size={12} /> Lo de siempre
+            </h2>
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {usual.map((u) => (
+                <button
+                  key={u.name}
+                  onClick={() => {
+                    haptic([12, 24, 12])
+                    addFood({ date, meal: defaultMeal(), name: u.name, brand: u.brand, grams: u.grams, kcal: u.kcal, protein: u.protein, carbs: u.carbs, fat: u.fat, source: 'custom' })
+                    setAdded(u.name)
+                    window.setTimeout(() => setAdded(null), 1200)
+                  }}
+                  className="card-raised flex min-w-[150px] max-w-[190px] shrink-0 flex-col items-start gap-0.5 px-3.5 py-2.5 text-left active:scale-95"
+                >
+                  <span className="w-full truncate text-[13px] font-bold">{u.name}</span>
+                  <span className="num text-[11px] text-white/45">
+                    {u.grams} g · {u.kcal} kcal
+                  </span>
+                  <span className={`num text-[11px] font-bold ${added === u.name ? 'text-emerald' : 'text-white/30'}`}>{added === u.name ? '✓ añadido' : `× ${u.n} veces`}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="card flex items-center gap-5 p-5">
           <Ring size={104} stroke={10} value={t.consumed / budget} color="#10B981">
             <span className="num text-xl font-bold">{fmt(t.consumed)}</span>

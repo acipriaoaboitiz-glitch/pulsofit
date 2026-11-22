@@ -11,6 +11,8 @@ export type SheetName =
   | 'search'
   | 'product'
   | 'start'
+  | 'addExercise'
+  | 'activity'
   | 'account'
   | 'profile'
   | 'custom'

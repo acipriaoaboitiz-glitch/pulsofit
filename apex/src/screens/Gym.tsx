@@ -7,7 +7,9 @@ import { RoutineEditor } from '../features/RoutineEditor'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
 import { exerciseById } from '../lib/exercises'
-import { buildActive } from '../lib/workout'
+import { buildActive, frequentExercises, muscleLoad, newExercise } from '../lib/workout'
+import { MuscleMap } from '../components/MuscleMap'
+import { MagicBar } from '../features/MagicBar'
 import type { Routine } from '../lib/types'
 import { addDays, fmt, fmtClock, haptic, keyToDate, todayKey } from '../lib/utils'
 
@@ -80,6 +82,17 @@ export function Gym() {
   }, [state.sessions])
 
   const history = [...state.sessions].sort((a, b) => b.startedAt - a.startedAt).slice(0, 12)
+  const load = useMemo(() => muscleLoad(state.sessions, state.active), [state.sessions, state.active])
+  const frequent = useMemo(() => frequentExercises(state.sessions, 8).filter((id) => exerciseById(id)), [state.sessions])
+  const [now] = useState(() => Date.now())
+
+  /** "Lo de siempre": one tap starts (or extends) a workout with that exercise and its ghost sets. */
+  const quickAdd = (id: string) => {
+    haptic(15)
+    const ex = newExercise(state.sessions, id)
+    if (state.active) setActive({ ...state.active, exercises: [...state.active.exercises, ex] })
+    else setActive({ ...buildActive(null, state.sessions), exercises: [ex] })
+  }
 
   return (
     <div className="px-4 pb-8">
@@ -94,17 +107,44 @@ export function Gym() {
               setActive(buildActive(null, state.sessions))
             }}
           >
-            <Dumbbell size={16} /> Entreno libre
+            <Dumbbell size={16} /> Sesión libre
           </button>
         }
       />
 
       <div className="space-y-4">
+        <MagicBar />
+
+        {frequent.length > 0 && (
+          <section>
+            <h2 className="label mb-2 px-1">Lo de siempre</h2>
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {frequent.map((id) => (
+                <button key={id} onClick={() => quickAdd(id)} className="chip max-w-[220px] shrink-0 !rounded-2xl !py-2.5 active:!bg-neon/20">
+                  <Plus size={13} strokeWidth={3} className="text-neon" />
+                  <span className="truncate">{exerciseById(id)?.name}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="card p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="label">Recuperación muscular · 48 h</p>
+            <span className="flex items-center gap-2 text-[10px] font-semibold text-white/40">
+              <span className="h-2 w-2 rounded-full bg-neon" /> trabajado
+              <span className="h-2 w-2 rounded-full bg-emerald/60" /> fresco
+            </span>
+          </div>
+          <MuscleMap load={load} now={now} />
+        </section>
+
         <section className="grid grid-cols-3 gap-2.5">
           {[
             { l: 'Sesiones 7d', v: week.n, c: 'text-white' },
-            { l: 'Volumen kg', v: fmt(week.volume), c: 'text-neon' },
-            { l: 'Récords', v: week.prs, c: 'text-amber-400' },
+            { l: 'Volumen kg', v: fmt(week.volume), c: 'text-emerald' },
+            { l: 'Récords', v: week.prs, c: 'text-neon' },
           ].map((s) => (
             <div key={s.l} className="card px-3 py-3.5 text-center">
               <div className={`num text-[22px] font-bold leading-none ${s.c}`}>{s.v}</div>
@@ -149,7 +189,7 @@ export function Gym() {
                     </div>
                   </div>
                   {s.prCount > 0 && (
-                    <span className="num inline-flex items-center gap-1 rounded-lg bg-amber-400 px-2 py-1 text-[11px] font-extrabold text-black">
+                    <span className="num inline-flex items-center gap-1 rounded-lg bg-neon px-2 py-1 text-[11px] font-extrabold text-white">
                       <Trophy size={11} /> {s.prCount}
                     </span>
                   )}
@@ -253,14 +293,14 @@ export function SummarySheet() {
             ))}
           </div>
           {summary.prs.length > 0 && (
-            <div className="rounded-2xl bg-gradient-to-br from-amber-300/20 to-amber-500/10 p-4">
-              <div className="mb-2 flex items-center gap-2 font-extrabold text-amber-400">
+            <div className="rounded-2xl bg-gradient-to-br from-neon/25 to-neon/5 p-4">
+              <div className="mb-2 flex items-center gap-2 font-extrabold text-violet-300">
                 <Trophy size={18} /> {summary.prs.length} récord{summary.prs.length > 1 ? 's' : ''} personal{summary.prs.length > 1 ? 'es' : ''}
               </div>
               <ul className="space-y-1 text-[13px] text-white/75">
                 {summary.prs.map((p, i) => (
                   <li key={i}>
-                    {p.exercise} <span className="text-amber-400">· {p.kind}</span>
+                    {p.exercise} <span className="num text-violet-300">· 1RM est. {p.e1rm} kg</span>
                   </li>
                 ))}
               </ul>

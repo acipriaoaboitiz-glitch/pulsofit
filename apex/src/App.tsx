@@ -16,6 +16,7 @@ import { ProductSheet } from './features/ProductSheet'
 import { CustomSheet, SearchSheet } from './features/SearchSheet'
 import { ProfileSheet } from './features/ProfileSheet'
 import { ActiveWorkout } from './features/ActiveWorkout'
+import { AddExerciseSheet, QuickActivitySheet, StepSyncer } from './features/GlobalSheets'
 
 function Shell() {
   const { state } = useStore()
@@ -61,6 +62,9 @@ function Shell() {
       <ProductSheet />
       <CustomSheet />
       <StartSheet />
+      <AddExerciseSheet />
+      <QuickActivitySheet />
+      <StepSyncer />
       <ProfileSheet />
       <SummarySheet />
       <ActiveWorkout />

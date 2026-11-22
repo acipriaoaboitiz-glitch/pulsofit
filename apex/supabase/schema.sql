@@ -1,12 +1,17 @@
 -- =====================================================================
--- PULSO · Supabase schema
--- Run once in: Supabase Dashboard → SQL Editor.
--- Every table has Row Level Security ON with strict `auth.uid() = user_id`
--- policies (select / insert / update / delete), so no user can ever read or
--- modify another user's data. The anon role has no table access at all.
+-- APEX · Supabase schema
+-- Run once in a DEDICATED Supabase project: Dashboard → SQL Editor.
 --
--- Records are created on the client with their own ids (works offline /
--- guest mode first), hence the composite primary key (user_id, id).
+-- ⚠ Use a fresh project. If the project already has tables named profiles, food_logs,
+--   water_logs or workout_sessions from another app (e.g. PULSO), `create table if not exists`
+--   would silently keep the OLD columns and APEX would fail at runtime.
+--
+-- Every table has Row Level Security ON with strict `auth.uid() = user_id` policies
+-- (select / insert / update / delete) so no user can read or modify another user's data,
+-- and the anon role has no table access at all.
+--
+-- Records are created on the client with their own ids (guest mode works offline first),
+-- hence the composite primary key (user_id, id).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -21,7 +26,6 @@ create table if not exists public.profiles (
   target_weight_kg numeric not null check (target_weight_kg between 20 and 400),
   activity_level   text not null check (activity_level in ('sedentary', 'light', 'moderate', 'active', 'very_active')),
   goal             text not null check (goal in ('lose', 'recomp', 'maintain', 'gain')),
-  -- derived targets (cached for convenience / other clients)
   kcal_target      int,
   protein_target   int,
   carbs_target     int,
@@ -45,7 +49,7 @@ create table if not exists public.food_logs (
   protein    numeric not null default 0,
   carbs      numeric not null default 0,
   fat        numeric not null default 0,
-  source     text not null default 'search' check (source in ('barcode', 'ai', 'search', 'custom')),
+  source     text not null default 'search' check (source in ('barcode', 'ai', 'search', 'custom', 'text')),
   image      text,
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
@@ -66,24 +70,36 @@ create table if not exists public.water_logs (
 create index if not exists water_logs_user_date_idx on public.water_logs (user_id, date);
 
 -- ---------------------------------------------------------------------
--- activity_logs (steps + cardio)
+-- daily_steps (one row per day; source = where the number came from)
 -- ---------------------------------------------------------------------
-create table if not exists public.activity_logs (
+create table if not exists public.daily_steps (
   user_id    uuid not null references auth.users (id) on delete cascade,
   id         text not null,
   date       date not null,
-  type       text not null check (type in ('steps', 'cardio')),
-  steps      int,
-  cardio     text check (cardio in ('walk_easy', 'walk_fast', 'run_easy', 'run_hard', 'bike', 'elliptical', 'swim', 'sport')),
-  minutes    int,
+  steps      int  not null check (steps >= 0),
+  source     text not null default 'manual' check (source in ('manual', 'health')),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+create index if not exists daily_steps_user_date_idx on public.daily_steps (user_id, date);
+
+-- ---------------------------------------------------------------------
+-- cardio_logs
+-- ---------------------------------------------------------------------
+create table if not exists public.cardio_logs (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  id         text not null,
+  date       date not null,
+  cardio     text not null check (cardio in ('walk', 'run', 'bike', 'elliptical', 'swim', 'sport')),
+  minutes    int  not null check (minutes > 0),
   kcal       numeric not null default 0,
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
-create index if not exists activity_logs_user_date_idx on public.activity_logs (user_id, date);
+create index if not exists cardio_logs_user_date_idx on public.cardio_logs (user_id, date);
 
 -- ---------------------------------------------------------------------
--- weight_logs (body weight history)
+-- weight_logs, saved_foods, custom_exercises, workout_routines (extras)
 -- ---------------------------------------------------------------------
 create table if not exists public.weight_logs (
   user_id    uuid not null references auth.users (id) on delete cascade,
@@ -95,9 +111,6 @@ create table if not exists public.weight_logs (
 );
 create index if not exists weight_logs_user_date_idx on public.weight_logs (user_id, date);
 
--- ---------------------------------------------------------------------
--- saved_foods (custom quick foods, values per 100 g)
--- ---------------------------------------------------------------------
 create table if not exists public.saved_foods (
   user_id    uuid not null references auth.users (id) on delete cascade,
   id         text not null,
@@ -112,21 +125,28 @@ create table if not exists public.saved_foods (
   primary key (user_id, id)
 );
 
--- ---------------------------------------------------------------------
--- workout_routines (unlimited; exercises = [{exerciseId, sets, reps, restSec}])
--- ---------------------------------------------------------------------
+create table if not exists public.custom_exercises (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  id         text not null,
+  name       text not null,
+  muscle     text not null check (muscle in ('Pecho', 'Espalda', 'Hombros', 'Bíceps', 'Tríceps', 'Cuádriceps', 'Isquios', 'Glúteos', 'Gemelos', 'Core')),
+  equipment  text not null default 'Personalizado',
+  updated_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
 create table if not exists public.workout_routines (
   user_id    uuid not null references auth.users (id) on delete cascade,
   id         text not null,
   name       text not null,
   program    text not null default '',
-  exercises  jsonb not null default '[]'::jsonb,
+  exercises  jsonb not null default '[]'::jsonb,   -- [{exerciseId, sets, reps, restSec}]
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
 
 -- ---------------------------------------------------------------------
--- workout_sessions (finished workouts; exercises = [{exerciseId, sets:[{kg,reps,done,pr}]}])
+-- workout_sessions + workout_sets (sets live in their own table, with user_id for a direct RLS check)
 -- ---------------------------------------------------------------------
 create table if not exists public.workout_sessions (
   user_id      uuid not null references auth.users (id) on delete cascade,
@@ -139,24 +159,40 @@ create table if not exists public.workout_sessions (
   kcal         numeric not null default 0,
   volume       numeric not null default 0,
   pr_count     int not null default 0,
-  exercises    jsonb not null default '[]'::jsonb,
   updated_at   timestamptz not null default now(),
   primary key (user_id, id)
 );
 create index if not exists workout_sessions_user_date_idx on public.workout_sessions (user_id, date);
 
+create table if not exists public.workout_sets (
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  id             text not null,                 -- `${session_id}:${exercise_order}:${set_order}`
+  session_id     text not null,
+  exercise_id    text not null,
+  exercise_order int  not null,
+  set_order      int  not null,
+  kg             numeric not null default 0 check (kg >= 0),
+  reps           int  not null default 0 check (reps >= 0),
+  done           boolean not null default false,
+  pr             boolean not null default false,
+  rest_sec       int,
+  primary key (user_id, id),
+  foreign key (user_id, session_id) references public.workout_sessions (user_id, id) on delete cascade
+);
+create index if not exists workout_sets_session_idx on public.workout_sets (user_id, session_id);
+
 -- ---------------------------------------------------------------------
--- ai_scan_usage: daily counter for the (only) metered feature – AI photo scans.
--- Users can READ their counter but never write it directly; increments go
--- through consume_ai_scan(), a SECURITY DEFINER function, so the limit cannot
--- be reset from the browser with the anon key.
+-- ai_usage: daily counters for the metered AI features (photo scans, text parsing).
+-- Users can READ their counters but never write them; increments go through consume_ai(),
+-- a SECURITY DEFINER function, so the limit cannot be reset from the browser with the anon key.
 -- ---------------------------------------------------------------------
-create table if not exists public.ai_scan_usage (
+create table if not exists public.ai_usage (
   user_id    uuid not null references auth.users (id) on delete cascade,
   day        date not null default current_date,
+  kind       text not null check (kind in ('photo', 'text')),
   count      int  not null default 0 check (count >= 0),
   updated_at timestamptz not null default now(),
-  primary key (user_id, day)
+  primary key (user_id, day, kind)
 );
 
 -- =====================================================================
@@ -165,20 +201,23 @@ create table if not exists public.ai_scan_usage (
 alter table public.profiles         enable row level security;
 alter table public.food_logs        enable row level security;
 alter table public.water_logs       enable row level security;
-alter table public.activity_logs    enable row level security;
+alter table public.daily_steps      enable row level security;
+alter table public.cardio_logs      enable row level security;
 alter table public.weight_logs      enable row level security;
 alter table public.saved_foods      enable row level security;
+alter table public.custom_exercises enable row level security;
 alter table public.workout_routines enable row level security;
 alter table public.workout_sessions enable row level security;
-alter table public.ai_scan_usage    enable row level security;
+alter table public.workout_sets     enable row level security;
+alter table public.ai_usage         enable row level security;
 
 -- Full owner-only CRUD on every user-data table
 do $$
 declare t text;
 begin
   foreach t in array array[
-    'profiles', 'food_logs', 'water_logs', 'activity_logs', 'weight_logs',
-    'saved_foods', 'workout_routines', 'workout_sessions'
+    'profiles', 'food_logs', 'water_logs', 'daily_steps', 'cardio_logs', 'weight_logs',
+    'saved_foods', 'custom_exercises', 'workout_routines', 'workout_sessions', 'workout_sets'
   ]
   loop
     execute format('drop policy if exists "%1$s_select_own" on public.%1$I', t);
@@ -193,23 +232,25 @@ begin
   end loop;
 end $$;
 
--- ai_scan_usage: read-only for the owner (no insert/update/delete policy = denied)
-drop policy if exists "ai_scan_usage_select_own" on public.ai_scan_usage;
-create policy "ai_scan_usage_select_own" on public.ai_scan_usage
+-- ai_usage: read-only for the owner (no insert/update/delete policy = denied)
+drop policy if exists "ai_usage_select_own" on public.ai_usage;
+create policy "ai_usage_select_own" on public.ai_usage
   for select to authenticated using (auth.uid() = user_id);
 
 -- Belt and braces: the anonymous role gets no table privileges at all.
-revoke all on public.profiles, public.food_logs, public.water_logs, public.activity_logs,
-              public.weight_logs, public.saved_foods, public.workout_routines,
-              public.workout_sessions, public.ai_scan_usage from anon;
-revoke insert, update, delete on public.ai_scan_usage from authenticated;
+revoke all on public.profiles, public.food_logs, public.water_logs, public.daily_steps, public.cardio_logs,
+              public.weight_logs, public.saved_foods, public.custom_exercises, public.workout_routines,
+              public.workout_sessions, public.workout_sets, public.ai_usage from anon;
+revoke insert, update, delete on public.ai_usage from authenticated;
 
 -- =====================================================================
--- consume_ai_scan: atomically reserve one AI scan for today.
--- Returns the new count, or -1 when the daily limit (max 3) is reached.
--- Called by /api/analyze-food with the user's own JWT (auth.uid() applies).
+-- consume_ai(kind): atomically reserve one AI call for today.
+-- Hard caps live HERE (photo 3/day, text 20/day) so clients can never raise them.
+-- Returns the new count, or -1 when the daily limit is reached.
+-- Called by /api/analyze-food and /api/quick-parse with the user's own JWT (auth.uid() applies).
+-- There is deliberately no refund function: a client could call it to reset its own quota.
 -- =====================================================================
-create or replace function public.consume_ai_scan(p_limit int default 3)
+create or replace function public.consume_ai(p_kind text)
 returns int
 language plpgsql
 security definer
@@ -217,25 +258,30 @@ set search_path = public
 as $$
 declare
   v_uid   uuid := auth.uid();
-  v_limit int  := least(greatest(coalesce(p_limit, 3), 1), 3); -- clients can never raise it
+  v_limit int;
   v_count int;
 begin
   if v_uid is null then
     raise exception 'not authenticated' using errcode = '28000';
   end if;
 
-  insert into public.ai_scan_usage (user_id, day, count)
-  values (v_uid, current_date, 0)
-  on conflict (user_id, day) do nothing;
+  v_limit := case p_kind when 'photo' then 3 when 'text' then 20 else null end;
+  if v_limit is null then
+    raise exception 'unknown kind' using errcode = '22023';
+  end if;
 
-  update public.ai_scan_usage
+  insert into public.ai_usage (user_id, day, kind, count)
+  values (v_uid, current_date, p_kind, 0)
+  on conflict (user_id, day, kind) do nothing;
+
+  update public.ai_usage
      set count = count + 1, updated_at = now()
-   where user_id = v_uid and day = current_date and count < v_limit
+   where user_id = v_uid and day = current_date and kind = p_kind and count < v_limit
   returning count into v_count;
 
   return coalesce(v_count, -1);
 end;
 $$;
 
-revoke all on function public.consume_ai_scan(int) from public, anon;
-grant execute on function public.consume_ai_scan(int) to authenticated;
+revoke all on function public.consume_ai(text) from public, anon;
+grant execute on function public.consume_ai(text) to authenticated;

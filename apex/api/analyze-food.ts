@@ -5,7 +5,7 @@
  *
  * - The Gemini API key lives only here (server side).
  * - Signed-in users: 3 scans/day enforced in Postgres through the SECURITY DEFINER
- *   function `consume_ai_scan` (called with the user's own JWT, so RLS/auth.uid() apply).
+ *   function `consume_ai` (called with the user's own JWT, so RLS/auth.uid() apply).
  * - Guests: best-effort per-IP limit (in-memory) + the client-side counter.
  * - Without GEMINI_API_KEY the endpoint answers with a realistic simulated result.
  *
@@ -147,7 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     })
-    const { data, error } = await sb.rpc('consume_ai_scan', { p_limit: DAILY_LIMIT })
+    const { data, error } = await sb.rpc('consume_ai', { p_kind: 'photo' })
     if (error) return res.status(401).json({ error: 'Sesión no válida' })
     if (typeof data === 'number' && data < 0) return res.status(429).json({ error: 'Límite diario alcanzado' })
   } else {

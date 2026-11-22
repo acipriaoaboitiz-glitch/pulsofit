@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Camera, Check, Image as ImageIcon, Loader2, Sparkles, TriangleAlert } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
 import { MealPicker } from './ProductSheet'
-import { useStore, AI_DAILY_LIMIT } from '../lib/store'
+import { useStore, AI_PHOTO_LIMIT } from '../lib/store'
 import { useUI } from '../lib/ui'
 import { AiLimitError, analyzeFoodPhoto, compressImage } from '../lib/ai'
 import type { AiFoodResult } from '../lib/ai'
@@ -17,15 +17,15 @@ export function AiCounter({ remaining }: { remaining: number }) {
     <div className="flex items-center gap-3 rounded-2xl border border-neon/25 bg-neon/10 px-4 py-3">
       <Sparkles size={18} className="shrink-0 text-neon" />
       <div className="flex-1 text-[13px] leading-snug text-white/70">
-        Análisis por foto con IA: <b className="text-white">{AI_DAILY_LIMIT} gratis al día</b>. El resto de la app es ilimitado.
+        Análisis por foto con IA: <b className="text-white">{AI_PHOTO_LIMIT} gratis al día</b>. El resto de la app es ilimitado.
       </div>
       <div className="flex gap-1" aria-label={`${remaining} análisis restantes hoy`}>
-        {Array.from({ length: AI_DAILY_LIMIT }, (_, i) => (
+        {Array.from({ length: AI_PHOTO_LIMIT }, (_, i) => (
           <span key={i} className={cn('h-2.5 w-2.5 rounded-full', i < remaining ? 'bg-neon' : 'bg-white/15')} />
         ))}
       </div>
       <span className="num text-[13px] font-bold text-neon">
-        {remaining}/{AI_DAILY_LIMIT}
+        {remaining}/{AI_PHOTO_LIMIT}
       </span>
     </div>
   )
@@ -55,11 +55,11 @@ function PhotoBody({ meal: initialMeal, date, onDone }: { meal: Meal; date: stri
       setRes(r)
       setName(r.nombre_plato)
       setGrams(String(Math.round(r.peso_estimado_gramos)))
-      if (!r.simulado) bumpAi()
+      if (!r.simulado) bumpAi('photo')
       haptic([15, 40, 15])
       setPhase('result')
     } catch (e) {
-      if (e instanceof AiLimitError) bumpAi(AI_DAILY_LIMIT)
+      if (e instanceof AiLimitError) bumpAi('photo', AI_PHOTO_LIMIT)
       setErr(e instanceof Error ? e.message : 'No se pudo analizar la foto')
       setPhase('error')
     }

@@ -9,6 +9,7 @@ import { Ring } from '../components/Ring'
 import { MacroBar } from '../components/bits'
 import { WaterWidget } from '../components/WaterWidget'
 import { WeightCard } from '../components/WeightCard'
+import { MagicBar } from '../features/MagicBar'
 
 const BURN_GOAL = 500
 
@@ -51,6 +52,8 @@ export function Today() {
           <UserRound size={20} className={auth.session ? 'text-emerald' : 'text-white/70'} />
         </button>
       </header>
+
+      <MagicBar />
 
       {/* Hero energy balance */}
       <motion.section
@@ -169,7 +172,7 @@ export function Today() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[13px] text-white/50">Te toca</div>
-              <div className="truncate text-lg font-extrabold">{next?.name ?? 'Entreno libre'}</div>
+              <div className="truncate text-lg font-extrabold">{next?.name ?? 'Sesión libre'}</div>
               {next && (
                 <div className="truncate text-[12px] text-white/45">
                   {next.program} · {next.exercises.length} ejercicios

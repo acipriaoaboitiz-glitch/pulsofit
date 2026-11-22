@@ -24,7 +24,7 @@ export const GOAL_DELTA: Record<Goal, number> = {
 }
 
 export const GOAL_LABELS: Record<Goal, { name: string; desc: string }> = {
-  lose: { name: 'Perder grasa', desc: 'Déficit de 400 kcal' },
+  lose: { name: 'Perder grasa / Definición', desc: 'Déficit de 400 kcal' },
   recomp: { name: 'Recomposición', desc: 'Déficit suave de 150 kcal' },
   maintain: { name: 'Mantenimiento', desc: 'Mismas kcal que gastas' },
   gain: { name: 'Ganar músculo', desc: 'Superávit de 300 kcal' },

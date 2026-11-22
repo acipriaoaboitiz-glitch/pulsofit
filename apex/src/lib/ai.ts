@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import type { MagicItem } from './parser'
 
 export interface AiFoodResult {
   nombre_plato: string
@@ -13,8 +14,8 @@ export interface AiFoodResult {
 }
 
 export class AiLimitError extends Error {
-  constructor() {
-    super('Has alcanzado el límite de 3 análisis por foto de hoy.')
+  constructor(message = 'Has alcanzado el límite de 3 análisis por foto de hoy.') {
+    super(message)
   }
 }
 
@@ -121,4 +122,25 @@ export async function analyzeFoodPhoto(dataUrl: string): Promise<AiFoodResult> {
     return mockAnalysis()
   }
   return (await res.json()) as AiFoodResult
+}
+
+/**
+ * Natural-language parsing with Gemini (`/api/quick-parse`) for text the local parser did not understand.
+ * Returns null when the endpoint is unavailable (local dev / no key) so the caller keeps its local result.
+ */
+export async function aiQuickParse(text: string): Promise<MagicItem[] | null> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = (await supabase?.auth.getSession())?.data.session?.access_token
+  if (token) headers.Authorization = `Bearer ${token}`
+  let res: Response
+  try {
+    res = await fetch('/api/quick-parse', { method: 'POST', headers, body: JSON.stringify({ text }) })
+  } catch {
+    return null
+  }
+  if (res.status === 429) throw new AiLimitError('Has alcanzado el límite diario de interpretación con IA.')
+  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null
+  const j = (await res.json()) as { items?: MagicItem[]; simulado?: boolean }
+  if (j.simulado || !Array.isArray(j.items)) return null
+  return j.items
 }

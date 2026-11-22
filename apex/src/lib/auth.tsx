@@ -59,9 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(OWNER_KEY, userId)
       const res = await syncAll(supabase, userId, stateRef.current, computeTargets, todayKey())
       store.dispatch({ t: 'merge', patch: res.patch, at: res.at, sentTomb: res.sentTomb })
-      if (res.aiCount !== null) {
-        const ai = stateRef.current.ai
-        store.bumpAi(Math.max(res.aiCount, ai.day === todayKey() ? ai.count : 0))
+      if (res.ai) {
+        const cur = stateRef.current.ai
+        const same = cur.day === todayKey()
+        store.dispatch({
+          t: 'ai',
+          ai: { day: todayKey(), photo: Math.max(res.ai.photo, same ? cur.photo : 0), text: Math.max(res.ai.text, same ? cur.text : 0) },
+        })
       }
       setError(null)
       setStatus('idle')

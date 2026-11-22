@@ -16,17 +16,17 @@ interface Item {
 
 const ITEMS: Item[] = [
   { id: 'scan', label: 'Escanear código', color: '#10B981', fg: '#04130d', icon: ScanBarcode },
-  { id: 'photo', label: 'Foto plato IA', color: '#8B5CF6', fg: '#fff', icon: Camera },
+  { id: 'photo', label: 'Foto al plato IA', color: '#8B5CF6', fg: '#fff', icon: Camera },
   { id: 'water', label: '+250 ml agua', color: '#06B6D4', fg: '#021a1f', icon: Droplets },
   { id: 'steps', label: 'Pasos / Cardio', color: '#F97316', fg: '#1c1200', icon: Footprints },
-  { id: 'workout', label: 'Empezar entreno', color: '#A78BFA', fg: '#150a3a', icon: Dumbbell },
+  { id: 'exercise', label: 'Añadir ejercicio hoy', color: '#A78BFA', fg: '#150a3a', icon: Dumbbell },
 ]
 
 const ANGLES = [-158, -124, -90, -56, -22]
 const RADIUS = 140
 
 export function QuickMenu() {
-  const { sheet, open, close, setTab } = useUI()
+  const { sheet, open, close } = useUI()
   const { addWater, aiRemaining } = useStore()
   const isOpen = sheet?.name === 'quick'
   const [watered, setWatered] = useState(false)
@@ -44,12 +44,7 @@ export function QuickMenu() {
       setWatered(true)
       return
     }
-    if (id === 'steps') {
-      setTab('actividad')
-      close()
-      return
-    }
-    open(id === 'workout' ? 'start' : (id as 'scan' | 'photo'))
+    open(id === 'exercise' ? 'addExercise' : id === 'steps' ? 'activity' : (id as 'scan' | 'photo'))
   }
 
   return (
