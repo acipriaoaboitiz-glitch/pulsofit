@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Cloud, CloudOff, Download, Loader2, LogOut, Mail, RefreshCw, Trash2 } from 'lucide-react'
+import { Cloud, Download, Loader2, LogOut, RefreshCw, Trash2 } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
+import { AuthForm } from '../components/AuthForm'
 import { Segmented } from '../components/bits'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
@@ -61,22 +62,6 @@ function Num({
 
 function CloudCard() {
   const auth = useAuth()
-  const [email, setEmail] = useState('')
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  if (!auth.cloud) {
-    return (
-      <div className="card-raised flex items-start gap-3 p-4">
-        <CloudOff size={20} className="mt-0.5 shrink-0 text-white/40" />
-        <div className="text-[13px] leading-snug text-white/60">
-          <b className="text-white">Modo invitado (local).</b> Tus datos viven en este dispositivo. Para sincronizar en la nube añade{' '}
-          <code className="num rounded bg-white/10 px-1">VITE_SUPABASE_URL</code> y{' '}
-          <code className="num rounded bg-white/10 px-1">VITE_SUPABASE_ANON_KEY</code> en tu <code className="num rounded bg-white/10 px-1">.env</code>.
-        </div>
-      </div>
-    )
-  }
 
   if (auth.session) {
     return (
@@ -88,7 +73,7 @@ function CloudCard() {
           <div className="min-w-0 flex-1">
             <div className="truncate text-[14px] font-bold">{auth.email}</div>
             <div className={cn('text-[12px]', auth.status === 'error' ? 'text-fire' : 'text-white/45')}>
-              {auth.status === 'syncing' ? 'Sincronizando…' : auth.status === 'error' ? `Error: ${auth.error}` : 'Sincronizado con la nube'}
+              {auth.status === 'syncing' ? 'Sincronizando…' : auth.status === 'error' ? `Error: ${auth.error}` : 'Sincronizado: lo verás igual en móvil y ordenador'}
             </div>
           </div>
           <button className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.06] active:scale-90" onClick={auth.syncNow} aria-label="Sincronizar ahora">
@@ -104,44 +89,15 @@ function CloudCard() {
 
   return (
     <div className="card-raised space-y-3 p-4">
-      <p className="text-[13px] leading-snug text-white/60">
-        <b className="text-white">Guarda y sincroniza tus datos.</b> Entra con email o Google: lo que ya has registrado como invitado se sube a tu cuenta.
-      </p>
-      <button
-        className="btn w-full bg-white text-black"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true)
-          const err = await auth.signInGoogle()
-          if (err) setMsg({ ok: false, text: err })
-          setBusy(false)
-        }}
-      >
-        Continuar con Google
-      </button>
-      <form
-        className="flex gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          if (!email.includes('@')) return
-          setBusy(true)
-          const err = await auth.signInEmail(email.trim())
-          setMsg(err ? { ok: false, text: err } : { ok: true, text: 'Te hemos enviado un enlace mágico. Ábrelo en este dispositivo.' })
-          setBusy(false)
-        }}
-      >
-        <div className="relative flex-1">
-          <Mail size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
-          <input className="input pl-11" type="email" placeholder="tu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <button className="btn-primary" disabled={busy || !email.includes('@')}>
-          Entrar
-        </button>
-      </form>
-      {msg && <p className={cn('text-[12px]', msg.ok ? 'text-emerald' : 'text-fire')}>{msg.text}</p>}
+      <div>
+        <p className="text-[15px] font-extrabold">Tu cuenta</p>
+        <p className="mt-0.5 text-[12.5px] leading-snug text-white/50">Crea una cuenta gratis para ver tus entrenos, comidas y pasos en el móvil y en el ordenador. Lo que ya has registrado como invitado se sube contigo.</p>
+      </div>
+      <AuthForm compact />
     </div>
   )
 }
+
 
 function Body() {
   const { state, targets, saveProfile, addWeight, resetAll } = useStore()

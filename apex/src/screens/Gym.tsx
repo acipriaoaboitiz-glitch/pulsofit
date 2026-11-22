@@ -95,7 +95,7 @@ export function Gym() {
   }
 
   return (
-    <div className="px-4 pb-8">
+    <div className="px-4 pb-8 lg:px-0">
       <PageHeader
         title="Gimnasio"
         sub="Rutinas ilimitadas · gratis"
@@ -112,11 +112,11 @@ export function Gym() {
         }
       />
 
-      <div className="space-y-4">
-        <MagicBar />
+      <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-5 lg:space-y-0">
+        <MagicBar className="lg:col-span-12" />
 
         {frequent.length > 0 && (
-          <section>
+          <section className="lg:col-span-12">
             <h2 className="label mb-2 px-1">Lo de siempre</h2>
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
               {frequent.map((id) => (
@@ -129,7 +129,7 @@ export function Gym() {
           </section>
         )}
 
-        <section className="card p-5">
+        <section className="card p-5 lg:sticky lg:top-6 lg:col-span-5 lg:row-span-6 lg:self-start">
           <div className="mb-3 flex items-center justify-between">
             <p className="label">Recuperación muscular · 48 h</p>
             <span className="flex items-center gap-2 text-[10px] font-semibold text-white/40">
@@ -140,7 +140,7 @@ export function Gym() {
           <MuscleMap load={load} now={now} />
         </section>
 
-        <section className="grid grid-cols-3 gap-2.5">
+        <section className="grid grid-cols-3 gap-2.5 lg:col-span-7">
           {[
             { l: 'Sesiones 7d', v: week.n, c: 'text-white' },
             { l: 'Volumen kg', v: fmt(week.volume), c: 'text-emerald' },
@@ -154,9 +154,9 @@ export function Gym() {
         </section>
 
         {programs.map(([program, list]) => (
-          <section key={program}>
+          <section key={program} className="lg:col-span-7">
             <h2 className="label mb-2 px-1">{program}</h2>
-            <div className="space-y-3">
+            <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
               {list.map((r) => (
                 <RoutineCard key={r.id} r={r} onEdit={() => setEditing(r)} />
               ))}
@@ -168,12 +168,12 @@ export function Gym() {
           <Empty icon={<Dumbbell size={24} />} text="No tienes rutinas. Crea la tuya con la biblioteca de +70 ejercicios." />
         )}
 
-        <button className="btn-ghost w-full" onClick={() => setEditing('new')}>
+        <button className="btn-ghost w-full lg:col-span-7" onClick={() => setEditing('new')}>
           <Plus size={18} /> Nueva rutina
         </button>
 
         {history.length > 0 && (
-          <section>
+          <section className="lg:col-span-12">
             <h2 className="label mb-2 px-1">Historial</h2>
             <div className="card divide-y divide-line">
               {history.map((s, i) => (

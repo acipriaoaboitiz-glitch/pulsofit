@@ -15,10 +15,11 @@ interface SheetProps {
 }
 
 export function Sheet({ open, onClose, title, children, full, z = 50 }: SheetProps) {
+  const desktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: z }}>
+        <div className="fixed inset-0 flex items-end justify-center lg:items-center" style={{ zIndex: z }}>
           <motion.div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             initial={{ opacity: 0 }}
@@ -30,16 +31,16 @@ export function Sheet({ open, onClose, title, children, full, z = 50 }: SheetPro
             role="dialog"
             aria-modal="true"
             className={cn(
-              'relative flex w-full max-w-[520px] flex-col rounded-t-[32px] border border-b-0 border-line bg-[#0d1017] shadow-2xl',
-              full ? 'h-[94dvh]' : 'max-h-[90dvh]',
+              'relative flex w-full max-w-[520px] flex-col rounded-t-[32px] border border-b-0 border-line bg-[#0d1017] shadow-2xl lg:max-w-[600px] lg:rounded-[28px] lg:border-b',
+              full ? 'h-[94dvh] lg:h-[86dvh]' : 'max-h-[90dvh] lg:max-h-[86dvh]',
             )}
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
+            initial={desktop ? { y: 24, opacity: 0, scale: 0.97 } : { y: '100%' }}
+            animate={desktop ? { y: 0, opacity: 1, scale: 1 } : { y: 0 }}
+            exit={desktop ? { y: 16, opacity: 0, scale: 0.98 } : { y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
           >
             <div className="flex items-center justify-between px-5 pb-2 pt-3">
-              <div className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/20" />
+              <div className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/20 lg:hidden" />
               <h2 className="pt-3 text-lg font-extrabold tracking-tight">{title}</h2>
               <button
                 onClick={onClose}

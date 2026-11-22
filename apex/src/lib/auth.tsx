@@ -9,12 +9,25 @@ import { todayKey } from './utils'
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'error'
 
+export interface AuthResult {
+  error?: string
+  info?: string
+}
+
+const NO_CLOUD: AuthResult = { error: 'La nube no está configurada: añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY al .env.' }
+const friendly = (m: string): string =>
+  /invalid login/i.test(m) ? 'Email o contraseña incorrectos.' : /already registered|already been registered/i.test(m) ? 'Ese email ya tiene cuenta: pulsa «Entrar».' : /password/i.test(m) && /6|short|weak/i.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit|too many/i.test(m) ? 'Demasiados intentos, espera un momento.' : m
+
 interface AuthCtx {
   session: Session | null
   email: string | null
   cloud: boolean
   status: SyncStatus
   error: string | null
+  /** Crear cuenta con email + contraseña. `info` = hay que confirmar el correo antes de entrar. */
+  signUpPassword: (email: string, password: string) => Promise<AuthResult>
+  signInPassword: (email: string, password: string) => Promise<AuthResult>
+  resetPassword: (email: string) => Promise<AuthResult>
   signInEmail: (email: string) => Promise<string | null>
   signInGoogle: () => Promise<string | null>
   signOut: () => Promise<void>
@@ -108,6 +121,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cloud: cloudEnabled,
       status,
       error,
+      signUpPassword: async (email, password) => {
+        if (!supabase) return NO_CLOUD
+        const { data, error: err } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
+        if (err) return { error: friendly(err.message) }
+        // with "Confirm email" enabled Supabase returns a user but no session
+        return data.session ? {} : { info: 'Cuenta creada. Revisa tu correo y confirma el enlace para entrar.' }
+      },
+      signInPassword: async (email, password) => {
+        if (!supabase) return NO_CLOUD
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+        return err ? { error: friendly(err.message) } : {}
+      },
+      resetPassword: async (email) => {
+        if (!supabase) return NO_CLOUD
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+        return err ? { error: friendly(err.message) } : { info: 'Te hemos enviado un correo para restablecer la contraseña.' }
+      },
       signInEmail: async (email) => {
         if (!supabase) return 'Supabase no está configurado.'
         const { error: err } = await supabase.auth.signInWithOtp({

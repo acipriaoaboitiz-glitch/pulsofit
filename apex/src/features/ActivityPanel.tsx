@@ -69,7 +69,7 @@ export function ActivityPanel({ compact = false, onDone }: { compact?: boolean; 
   const native = info && info.status !== 'web'
 
   return (
-    <div className="space-y-4">
+    <div className={cn('space-y-4', !compact && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0')}>
       {/* Steps */}
       <section className="card p-5">
         <div className="flex items-center gap-5">
@@ -210,7 +210,7 @@ export function ActivityPanel({ compact = false, onDone }: { compact?: boolean; 
 
       {!compact && (
         <>
-          <section className="card p-5">
+          <section className="card p-5 lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <p className="label">Calorías activas · 7 días</p>
               <span className="num text-[12px] text-white/40">{fmt(week.reduce((a, w) => a + w.burned, 0))} kcal</span>

@@ -38,8 +38,8 @@ export function Today() {
   }
 
   return (
-    <div className="space-y-4 px-4 pb-8">
-      <header className="flex items-center justify-between px-1 pb-1 pt-[calc(18px+var(--safe-top))]">
+    <div className="space-y-4 px-4 pb-8 lg:grid lg:grid-cols-12 lg:gap-5 lg:space-y-0 lg:px-0">
+      <header className="flex items-center justify-between px-1 pb-1 pt-[calc(18px+var(--safe-top))] lg:col-span-12 lg:pt-8">
         <div>
           <p className="label">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           <h1 className="mt-1 text-[28px] font-extrabold leading-none tracking-tight">{greeting()} 👋</h1>
@@ -53,13 +53,13 @@ export function Today() {
         </button>
       </header>
 
-      <MagicBar />
+      <MagicBar className="lg:col-span-12" />
 
       {/* Hero energy balance */}
       <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card relative overflow-hidden p-5"
+        className="card relative overflow-hidden p-5 lg:col-span-5 lg:row-span-2"
       >
         <div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-emerald/10 blur-3xl" />
         <div className="flex items-center justify-between">
@@ -107,17 +107,17 @@ export function Today() {
       </motion.section>
 
       {/* Macros */}
-      <section className="card space-y-4 p-5">
+      <section className="card space-y-4 p-5 lg:col-span-7">
         <p className="label">Macronutrientes</p>
         <MacroBar label="Proteínas" value={t.protein} target={targets.protein} color="#10B981" />
         <MacroBar label="Carbohidratos" value={t.carbs} target={targets.carbs} color="#F97316" />
         <MacroBar label="Grasas" value={t.fat} target={targets.fat} color="#8B5CF6" />
       </section>
 
-      <WaterWidget />
+      <div className="lg:col-span-7"><WaterWidget /></div>
 
       {/* Day summary */}
-      <section className="grid grid-cols-2 gap-3">
+      <section className="grid grid-cols-2 gap-3 lg:col-span-4 lg:content-start">
         <div className="card p-4">
           <div className="flex items-center gap-2 text-fire">
             <Flame size={18} />
@@ -140,7 +140,7 @@ export function Today() {
       </section>
 
       {/* Today's workout */}
-      <section className="card overflow-hidden p-5">
+      <section className="card overflow-hidden p-5 lg:col-span-4">
         <div className="flex items-center gap-2 text-neon">
           <Dumbbell size={18} />
           <span className="label !text-neon/90">Entreno de hoy</span>
@@ -184,7 +184,7 @@ export function Today() {
         )}
       </section>
 
-      <WeightCard />
+      <div className="lg:col-span-4"><WeightCard /></div>
     </div>
   )
 }

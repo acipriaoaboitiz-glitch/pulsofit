@@ -134,11 +134,11 @@ export function Nutrition() {
         }
       />
 
-      <div className="space-y-4">
-        <MagicBar />
+      <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-start lg:gap-5 lg:space-y-0">
+        <MagicBar className="lg:col-span-12" />
 
         {usual.length > 0 && (
-          <section>
+          <section className="lg:col-span-12">
             <h2 className="label mb-2 flex items-center gap-1.5 px-1 !text-emerald">
               <Sparkles size={12} /> Lo de siempre
             </h2>
@@ -165,7 +165,7 @@ export function Nutrition() {
           </section>
         )}
 
-        <section className="card flex items-center gap-5 p-5">
+        <section className="card flex items-center gap-5 p-5 lg:col-span-6">
           <Ring size={104} stroke={10} value={t.consumed / budget} color="#10B981">
             <span className="num text-xl font-bold">{fmt(t.consumed)}</span>
             <span className="text-[10px] font-bold uppercase text-white/40">kcal</span>
@@ -177,7 +177,7 @@ export function Nutrition() {
           </div>
         </section>
 
-        <section className="grid grid-cols-3 gap-2.5">
+        <section className="grid grid-cols-3 gap-2.5 lg:col-span-6">
           <button
             className="card flex flex-col items-center gap-2 py-4 active:scale-95"
             onClick={() => {
@@ -223,7 +223,7 @@ export function Nutrition() {
           const list = byMeal[m.id]
           const kcal = list.reduce((a, f) => a + f.kcal, 0)
           return (
-            <section key={m.id} className="card p-4">
+            <section key={m.id} className="card p-4 lg:col-span-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <span className="text-xl">{m.emoji}</span>

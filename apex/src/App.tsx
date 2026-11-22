@@ -9,6 +9,7 @@ import { Nutrition } from './screens/Nutrition'
 import { Gym, StartSheet, SummarySheet } from './screens/Gym'
 import { ActivityScreen } from './screens/ActivityScreen'
 import { TabBar } from './components/TabBar'
+import { SideNav } from './components/SideNav'
 import { QuickMenu } from './features/QuickMenu'
 import { ScannerSheet } from './features/ScannerSheet'
 import { PhotoSheet } from './features/PhotoSheet'
@@ -29,15 +30,18 @@ function Shell() {
 
   if (!state.profile) {
     return (
-      <div className="mx-auto h-full max-w-[520px] overflow-y-auto">
+      <div className="mx-auto h-full max-w-[520px] overflow-y-auto lg:max-w-[560px]">
         <Onboarding />
       </div>
     )
   }
 
   return (
-    <div className="page-bg mx-auto h-full max-w-[520px]">
-      <main ref={scroller} className="h-full overflow-y-auto overscroll-contain pb-[calc(120px+var(--safe-bottom))]">
+    <div className="page-bg h-full">
+      <SideNav />
+      <div className="mx-auto h-full max-w-[520px] lg:max-w-none lg:pl-[248px]">
+      <main ref={scroller} className="h-full overflow-y-auto overscroll-contain pb-[calc(120px+var(--safe-bottom))] lg:pb-10">
+        <div className="mx-auto w-full lg:max-w-[1120px] lg:px-8 xl:px-10">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
@@ -52,7 +56,9 @@ function Shell() {
             {tab === 'actividad' && <ActivityScreen />}
           </motion.div>
         </AnimatePresence>
+        </div>
       </main>
+      </div>
 
       <TabBar />
       <QuickMenu />

@@ -47,7 +47,7 @@ export function TabBar() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3"
+      className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 lg:hidden"
       style={{ paddingBottom: 'calc(10px + var(--safe-bottom))' }}
     >
       <div className="relative flex w-full max-w-[480px] items-stretch rounded-[28px] border border-line bg-[#0d1017]/90 px-1 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] backdrop-blur-xl">

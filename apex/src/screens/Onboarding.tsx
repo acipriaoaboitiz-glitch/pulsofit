@@ -6,6 +6,8 @@ import { ACTIVITY_LABELS, GOAL_LABELS, computeTargets } from '../lib/metabolic'
 import type { ActivityLevel, Goal, Profile, Sex } from '../lib/types'
 import { cn, fmt, haptic, todayKey } from '../lib/utils'
 import { Segmented } from '../components/bits'
+import { Sheet } from '../components/Sheet'
+import { AuthForm } from '../components/AuthForm'
 
 type Draft = Omit<Profile, 'u'>
 
@@ -58,6 +60,7 @@ function NumField({
 export function Onboarding() {
   const { saveProfile, addWeight } = useStore()
   const [step, setStep] = useState(0)
+  const [authOpen, setAuthOpen] = useState(false)
   const [dir, setDir] = useState(1)
   const [d, setD] = useState<Draft>({
     sex: 'male',
@@ -247,6 +250,17 @@ export function Onboarding() {
           </button>
         )}
       </div>
+
+      {step === 0 && (
+        <button type="button" onClick={() => setAuthOpen(true)} className="mt-4 text-center text-[13px] font-semibold text-white/50 underline-offset-2 hover:underline">
+          ¿Ya tienes cuenta? <span className="text-emerald">Entrar</span>
+        </button>
+      )}
+
+      <Sheet open={authOpen} onClose={() => setAuthOpen(false)} title="Entrar o crear cuenta">
+        <p className="mb-4 text-[13px] leading-snug text-white/55">Con tu cuenta ves los mismos datos en el móvil y en el ordenador. Si ya tenías datos, se cargan al entrar.</p>
+        <AuthForm initialMode="login" onDone={() => setAuthOpen(false)} />
+      </Sheet>
     </div>
   )
 }

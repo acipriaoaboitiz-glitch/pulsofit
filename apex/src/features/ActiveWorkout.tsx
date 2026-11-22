@@ -249,7 +249,7 @@ export function ActiveWorkout() {
       {burst > 0 && <Confetti key={burst} />}
 
       {/* header */}
-      <div className="border-b border-line px-4 pb-3 pt-[calc(14px+var(--safe-top))]">
+      <div className="border-b border-line px-4 pb-3 pt-[calc(14px+var(--safe-top))] lg:px-[max(1.5rem,calc((100%-1000px)/2))]">
         <div className="flex items-center justify-between gap-3">
           <button onClick={() => setDiscarding(true)} aria-label="Descartar entreno" className="grid h-10 w-10 place-items-center rounded-full bg-white/[0.06] text-white/60 active:scale-90">
             <X size={18} />
@@ -298,8 +298,8 @@ export function ActiveWorkout() {
       </div>
 
       {/* exercises */}
-      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-[170px] pt-4">
-        {active.exercises.length === 0 && <p className="py-10 text-center text-sm text-white/40">Sesión libre: añade ejercicios según lo que hagas hoy.</p>}
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-[170px] pt-4 lg:grid lg:grid-cols-2 lg:content-start lg:items-start lg:gap-4 lg:space-y-0 lg:px-[max(1.5rem,calc((100%-1000px)/2))]">
+        {active.exercises.length === 0 && <p className="py-10 text-center text-sm text-white/40 lg:col-span-2">Sesión libre: añade ejercicios según lo que hagas hoy.</p>}
         {active.exercises.map((ex, ei) => {
           const def = exerciseById(ex.exerciseId)
           const best = bests.get(ex.exerciseId)
@@ -344,12 +344,13 @@ export function ActiveWorkout() {
           )
         })}
 
-        <button className="btn-ghost w-full" onClick={() => setPicker(true)}>
+        <button className="btn-ghost w-full lg:col-span-2" onClick={() => setPicker(true)}>
           <Plus size={18} /> Añadir ejercicio
         </button>
       </div>
 
       {/* PR toast */}
+      <div className="pointer-events-none absolute inset-x-0 top-[calc(78px+var(--safe-top))] z-10 flex justify-center px-4">
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -357,15 +358,17 @@ export function ActiveWorkout() {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: -80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 24 }}
-            className="absolute inset-x-4 top-[calc(78px+var(--safe-top))] z-10 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-500 to-neon p-3.5 text-white shadow-[0_12px_40px_-8px_rgba(139,92,246,0.9)]"
+            className="pointer-events-auto flex w-full max-w-[560px] items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-500 to-neon p-3.5 text-white shadow-[0_12px_40px_-8px_rgba(139,92,246,0.9)]"
           >
             <Trophy size={26} />
             <span className="text-[14px] font-extrabold leading-tight">{toast}</span>
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
       {/* floating circular rest timer */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-[calc(16px+var(--safe-bottom))] z-20 flex justify-center px-4">
       <AnimatePresence>
         {(resting || restDone) && (
           <motion.div
@@ -373,7 +376,7 @@ export function ActiveWorkout() {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="absolute inset-x-4 bottom-[calc(16px+var(--safe-bottom))] z-20 flex items-center gap-3 rounded-[28px] border border-neon/30 bg-[#12101f]/95 p-2.5 pr-3 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.9)]"
+            className="pointer-events-auto flex w-full max-w-[480px] items-center gap-3 rounded-[28px] border border-neon/30 bg-[#12101f]/95 p-2.5 pr-3 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.9)]"
           >
             <Ring size={64} stroke={6} value={resting ? rest / active.restTotal : restDone ? 1 : 0} color={restDone ? '#10B981' : '#8B5CF6'} glow={false}>
               <span className="num text-[15px] font-bold">{resting ? fmtClock(Math.ceil(rest)) : '00:00'}</span>
@@ -401,6 +404,7 @@ export function ActiveWorkout() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
       <ExercisePicker
         open={picker}
