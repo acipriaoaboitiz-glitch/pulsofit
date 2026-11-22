@@ -17,3 +17,19 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     })
   })
 }
+
+// Cursor spotlight on glass cards (mouse only; costs nothing on touch)
+if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  let raf = 0
+  document.addEventListener('pointermove', (e) => {
+    if (raf) return
+    raf = requestAnimationFrame(() => {
+      raf = 0
+      const card = (e.target as Element | null)?.closest?.('.card') as HTMLElement | null
+      if (!card) return
+      const r = card.getBoundingClientRect()
+      card.style.setProperty('--mx', `${e.clientX - r.left}px`)
+      card.style.setProperty('--my', `${e.clientY - r.top}px`)
+    })
+  })
+}

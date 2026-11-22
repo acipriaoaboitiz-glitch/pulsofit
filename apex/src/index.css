@@ -157,3 +157,50 @@ body::after {
 #apex-reader video {
   object-fit: contain;
 }
+
+/* ── Fondo aurora: tres focos de luz que derivan muy despacio (solo transform) ─────────── */
+.aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.aurora i { position: absolute; border-radius: 9999px; will-change: transform; }
+.aurora .a1 { left: -18vmax; top: -22vmax; width: 70vmax; height: 70vmax; background: radial-gradient(circle, rgba(16,185,129,0.13), transparent 62%); animation: aurora-a 26s ease-in-out infinite alternate; }
+.aurora .a2 { right: -24vmax; top: 6vmax; width: 66vmax; height: 66vmax; background: radial-gradient(circle, rgba(6,182,212,0.10), transparent 62%); animation: aurora-b 32s ease-in-out infinite alternate; }
+.aurora .a3 { left: 12vmax; bottom: -34vmax; width: 72vmax; height: 72vmax; background: radial-gradient(circle, rgba(139,92,246,0.10), transparent 62%); animation: aurora-c 38s ease-in-out infinite alternate; }
+@keyframes aurora-a { to { transform: translate3d(14vmax, 10vmax, 0) scale(1.15); } }
+@keyframes aurora-b { to { transform: translate3d(-16vmax, 12vmax, 0) scale(0.9); } }
+@keyframes aurora-c { to { transform: translate3d(10vmax, -14vmax, 0) scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .aurora i { animation: none; } }
+
+/* ── Entrada escalonada de las tarjetas al cambiar de pantalla ───────────────────────── */
+@keyframes rise-in { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.985); } to { opacity: 1; transform: none; } }
+.rise > * > * { animation: rise-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+.rise > * > *:nth-child(1) { animation-delay: 0ms; }
+.rise > * > *:nth-child(2) { animation-delay: 45ms; }
+.rise > * > *:nth-child(3) { animation-delay: 90ms; }
+.rise > * > *:nth-child(4) { animation-delay: 135ms; }
+.rise > * > *:nth-child(5) { animation-delay: 180ms; }
+.rise > * > *:nth-child(6) { animation-delay: 225ms; }
+.rise > * > *:nth-child(7) { animation-delay: 270ms; }
+.rise > * > *:nth-child(8) { animation-delay: 315ms; }
+.rise > * > *:nth-child(n + 9) { animation-delay: 360ms; }
+@media (prefers-reduced-motion: reduce) { .rise > * > * { animation: none; } }
+
+/* ── Foco de luz que sigue al cursor sobre cada tarjeta (solo ratón) ──────────────────── */
+@media (hover: hover) and (pointer: fine) {
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.075), transparent 62%);
+  }
+  .card:hover::before { opacity: 1; }
+}
+
+/* móvil: desenfoque de cristal más barato para mantener 60 fps */
+@media (max-width: 1023px) {
+  .card { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+}
+
+html { scroll-behavior: smooth; }
