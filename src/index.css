@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #080a0f;
+  color: #f4f6fa;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Never let iOS zoom on focus */
+input,
+select,
+textarea {
+  font-size: 16px !important;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.35);
+}
+
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+@layer components {
+  .num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .card {
+    @apply rounded-3xl border border-line bg-card;
+  }
+  .card-raised {
+    @apply rounded-2xl border border-line bg-raised;
+  }
+  .label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[15px] font-bold transition active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-emerald text-[#04130d] shadow-[0_8px_30px_-8px_rgba(16,185,129,0.7)];
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-white/[0.04] text-white/90;
+  }
+  .btn-violet {
+    @apply btn bg-neon text-white shadow-[0_8px_30px_-8px_rgba(139,92,246,0.7)];
+  }
+  .input {
+    @apply w-full rounded-2xl border border-line bg-raised px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-emerald/60;
+  }
+  .chip {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-white/[0.04] px-3.5 py-2 text-[13px] font-semibold text-white/70 transition active:scale-95;
+  }
+  .chip-on {
+    @apply border-emerald/50 bg-emerald/15 text-emerald;
+  }
+}
+
+.page-bg {
+  background:
+    radial-gradient(70% 40% at 85% -5%, rgba(16, 185, 129, 0.14), transparent 70%),
+    radial-gradient(60% 35% at 0% 10%, rgba(139, 92, 246, 0.1), transparent 70%), #080a0f;
+}
+
+/* html5-qrcode renders its own <video>; the frame overlay is ours */
+#pulso-reader {
+  width: 100%;
+}
+#pulso-reader video {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+#pulso-reader #qr-shaded-region {
+  display: none !important;
+}

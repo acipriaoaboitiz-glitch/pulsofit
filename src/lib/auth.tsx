@@ -1,0 +1,139 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { cloudEnabled, supabase } from './supabase'
+import { useStore } from './store'
+import { isDirty, syncAll } from './sync'
+import { computeTargets } from './metabolic'
+import { todayKey } from './utils'
+
+export type SyncStatus = 'off' | 'idle' | 'syncing' | 'error'
+
+interface AuthCtx {
+  session: Session | null
+  email: string | null
+  cloud: boolean
+  status: SyncStatus
+  error: string | null
+  signInEmail: (email: string) => Promise<string | null>
+  signInGoogle: () => Promise<string | null>
+  signOut: () => Promise<void>
+  syncNow: () => void
+}
+
+const Ctx = createContext<AuthCtx | null>(null)
+const OWNER_KEY = 'pulso.owner'
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const store = useStore()
+  const [session, setSession] = useState<Session | null>(null)
+  const [status, setStatus] = useState<SyncStatus>('off')
+  const [error, setError] = useState<string | null>(null)
+  const stateRef = useRef(store.state)
+  stateRef.current = store.state
+  const running = useRef(false)
+  const userId = session?.user.id ?? null
+
+  // Session bootstrap
+  useEffect(() => {
+    if (!supabase) return
+    void supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  const run = useCallback(async () => {
+    if (!supabase || !userId || running.current) return
+    running.current = true
+    setStatus('syncing')
+    try {
+      // Another account used this device before → start clean so data never mixes.
+      const owner = localStorage.getItem(OWNER_KEY)
+      if (owner && owner !== userId) {
+        store.resetAll()
+        localStorage.setItem(OWNER_KEY, userId)
+        running.current = false
+        setStatus('idle')
+        return
+      }
+      localStorage.setItem(OWNER_KEY, userId)
+      const res = await syncAll(supabase, userId, stateRef.current, computeTargets, todayKey())
+      store.dispatch({ t: 'merge', patch: res.patch, at: res.at, sentTomb: res.sentTomb })
+      if (res.aiCount !== null) {
+        const ai = stateRef.current.ai
+        store.bumpAi(Math.max(res.aiCount, ai.day === todayKey() ? ai.count : 0))
+      }
+      setError(null)
+      setStatus('idle')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String((e as { message?: string }).message ?? e))
+      setStatus('error')
+    } finally {
+      running.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
+  // Initial sync after login
+  useEffect(() => {
+    if (userId) void run()
+    else setStatus('off')
+  }, [userId, run])
+
+  // Debounced push whenever local data changed
+  useEffect(() => {
+    if (!userId || running.current || !isDirty(store.state)) return
+    const t = window.setTimeout(() => void run(), 2500)
+    return () => window.clearTimeout(t)
+  }, [store.state, userId, run])
+
+  // Pull on focus
+  useEffect(() => {
+    if (!userId) return
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void run()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [userId, run])
+
+  const value = useMemo<AuthCtx>(
+    () => ({
+      session,
+      email: session?.user.email ?? null,
+      cloud: cloudEnabled,
+      status,
+      error,
+      signInEmail: async (email) => {
+        if (!supabase) return 'Supabase no está configurado.'
+        const { error: err } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: window.location.origin },
+        })
+        return err ? err.message : null
+      },
+      signInGoogle: async () => {
+        if (!supabase) return 'Supabase no está configurado.'
+        const { error: err } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin },
+        })
+        return err ? err.message : null
+      },
+      signOut: async () => {
+        await supabase?.auth.signOut()
+        setSession(null)
+      },
+      syncNow: () => void run(),
+    }),
+    [session, status, error, run],
+  )
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+}
+
+export function useAuth(): AuthCtx {
+  const c = useContext(Ctx)
+  if (!c) throw new Error('useAuth outside AuthProvider')
+  return c
+}
