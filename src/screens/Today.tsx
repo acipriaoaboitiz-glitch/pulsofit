@@ -12,6 +12,7 @@ import { HydrationCard } from '../components/HydrationCard'
 import { WeightCard } from '../components/WeightCard'
 import { WeekStrip } from '../components/WeekStrip'
 import { MagicBar } from '../features/MagicBar'
+import { QuickActions } from '../components/QuickActions'
 import { STEP_GOAL } from '../features/ActivityPanel'
 import { TreadmillQuick } from '../features/TreadmillSheet'
 import { useDesktop } from '../lib/useMedia'
@@ -177,7 +178,9 @@ export function Today() {
           <p className="label">{keyToDate(date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           <div className="mt-1.5 flex items-center gap-3">
             <h1 className="text-[28px] font-extrabold leading-none tracking-tight lg:text-[38px]">{isToday ? greeting() : 'Resumen'}</h1>
-            <StreakBadge days={streak} />
+            <span className="hidden lg:inline-flex">
+              <StreakBadge days={streak} />
+            </span>
           </div>
         </div>
       </header>
@@ -185,6 +188,8 @@ export function Today() {
       <div className="mt-4 lg:mt-6">
         <WeekStrip selected={date} onSelect={setDate} />
       </div>
+
+      <QuickActions date={date} className="mt-4 lg:hidden" />
 
       <MagicBar className="mt-4 lg:mt-5" />
 
@@ -199,9 +204,9 @@ export function Today() {
               <p className="num text-[11px] text-white/35">{fmt(targets.kcal)} kcal/día</p>
             </div>
 
-            <div className="relative my-5 flex justify-center lg:my-8">
-              <Ring size={desk ? 280 : 236} stroke={desk ? 22 : 20} value={t.consumed / budget} gradient={over ? ['#F97316', '#FBBF24'] : ['#10B981', '#06B6D4']}>
-                <Ring size={desk ? 214 : 178} stroke={desk ? 12 : 10} value={t.burned / 500} gradient={['#F97316', '#FBBF24']} glow={false}>
+            <div className="relative my-4 flex justify-center lg:my-8">
+              <Ring size={desk ? 280 : 196} stroke={desk ? 22 : 17} value={t.consumed / budget} gradient={over ? ['#F97316', '#FBBF24'] : ['#10B981', '#06B6D4']}>
+                <Ring size={desk ? 214 : 148} stroke={desk ? 12 : 9} value={t.burned / 500} gradient={['#F97316', '#FBBF24']} glow={false}>
                   <div className="text-center">
                     <SpringNumber value={Math.abs(remaining)} className={cn('num text-[42px] font-bold leading-none lg:text-[54px]', over ? 'text-fire' : 'text-white')} />
                     <div className="label mt-1.5 !text-[9.5px]">{over ? 'kcal de más' : 'kcal restantes'}</div>
@@ -238,7 +243,7 @@ export function Today() {
         </div>
 
         {/* right: 2×2 bento */}
-        <div className="grid grid-cols-2 gap-3 lg:col-span-7 lg:auto-rows-fr lg:gap-6">
+        <div className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 lg:col-span-7 lg:auto-rows-fr lg:gap-6">
           <HydrationCard date={date} />
           <StepsCard date={date} />
           <WorkoutCard date={date} />

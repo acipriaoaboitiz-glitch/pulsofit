@@ -1,16 +1,27 @@
 import { supabase } from './supabase'
 import type { MagicItem } from './parser'
 
-export interface AiFoodResult {
-  nombre_plato: string
-  alimentos_detectados: string[]
-  peso_estimado_gramos: number
+export interface AiItem {
+  nombre: string
+  gramos: number
   calorias: number
   proteinas_g: number
   carbohidratos_g: number
   grasas_g: number
+}
+
+export interface AiFoodResult {
+  es_comida: boolean
+  nombre_plato: string
   confianza: number
-  simulado?: boolean
+  alimentos: AiItem[]
+}
+
+/** The photo AI is not configured (or there is no server): the UI offers the other ways of logging. */
+export class AiUnavailableError extends Error {
+  constructor() {
+    super('El análisis por foto todavía no está activado.')
+  }
 }
 
 export class AiLimitError extends Error {
@@ -35,58 +46,11 @@ export async function compressImage(file: Blob, maxSide = 800, quality = 0.75): 
   return canvas.toDataURL('image/jpeg', quality)
 }
 
-const MOCKS: AiFoodResult[] = [
-  {
-    nombre_plato: 'Pollo a la plancha con arroz y brócoli',
-    alimentos_detectados: ['Pechuga de pollo', 'Arroz blanco', 'Brócoli'],
-    peso_estimado_gramos: 420,
-    calorias: 560,
-    proteinas_g: 46,
-    carbohidratos_g: 62,
-    grasas_g: 13,
-    confianza: 0.82,
-  },
-  {
-    nombre_plato: 'Ensalada de salmón y aguacate',
-    alimentos_detectados: ['Salmón', 'Aguacate', 'Lechuga', 'Tomate cherry'],
-    peso_estimado_gramos: 350,
-    calorias: 470,
-    proteinas_g: 31,
-    carbohidratos_g: 14,
-    grasas_g: 32,
-    confianza: 0.77,
-  },
-  {
-    nombre_plato: 'Tortilla de patata con ensalada',
-    alimentos_detectados: ['Tortilla de patata', 'Lechuga', 'Tomate'],
-    peso_estimado_gramos: 300,
-    calorias: 520,
-    proteinas_g: 17,
-    carbohidratos_g: 36,
-    grasas_g: 34,
-    confianza: 0.85,
-  },
-  {
-    nombre_plato: 'Pasta boloñesa',
-    alimentos_detectados: ['Espaguetis', 'Carne picada', 'Salsa de tomate'],
-    peso_estimado_gramos: 380,
-    calorias: 640,
-    proteinas_g: 33,
-    carbohidratos_g: 82,
-    grasas_g: 18,
-    confianza: 0.8,
-  },
-]
-
-export function mockAnalysis(): AiFoodResult {
-  return { ...MOCKS[Math.floor(Math.random() * MOCKS.length)], simulado: true }
-}
-
 /**
- * Calls the serverless endpoint. In local `vite dev` (no /api) or without a
- * Gemini key the endpoint/fallback returns a realistic simulated result.
+ * Calls the serverless endpoint. It never makes up a result: if the AI cannot answer, it throws.
+ * `hint` is the optional description typed by the user, which makes the estimate far more accurate.
  */
-export async function analyzeFoodPhoto(dataUrl: string): Promise<AiFoodResult> {
+export async function analyzeFoodPhoto(dataUrl: string, hint = ''): Promise<AiFoodResult> {
   const [meta, base64] = dataUrl.split(',')
   const mimeType = /data:(.*?);/.exec(meta)?.[1] ?? 'image/jpeg'
 
@@ -96,32 +60,23 @@ export async function analyzeFoodPhoto(dataUrl: string): Promise<AiFoodResult> {
 
   let res: Response
   try {
-    res = await fetch('/api/analyze-food', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ image: base64, mimeType }),
-    })
+    res = await fetch('/api/analyze-food', { method: 'POST', headers, body: JSON.stringify({ image: base64, mimeType, hint }) })
   } catch {
-    await new Promise((r) => setTimeout(r, 1400))
-    return mockAnalysis()
+    throw new Error('Sin conexión. Revisa internet e inténtalo de nuevo.')
   }
 
   if (res.status === 429) throw new AiLimitError()
-  // Static dev server answers 404/405 for /api → simulated mode
-  if (res.status === 404 || res.status === 405) {
-    await new Promise((r) => setTimeout(r, 1400))
-    return mockAnalysis()
-  }
+  const isJson = (res.headers.get('content-type') ?? '').includes('json')
+  // no serverless function here (static dev server)
+  if (res.status === 404 || res.status === 405 || (res.ok && !isJson)) throw new AiUnavailableError()
   if (!res.ok) {
-    const j = (await res.json().catch(() => ({}))) as { error?: string }
+    const j = (await res.json().catch(() => ({}))) as { error?: string; code?: string }
+    if (j.code === 'ai_off') throw new AiUnavailableError()
     throw new Error(j.error ?? `Error del servidor (${res.status})`)
   }
-  const ct = res.headers.get('content-type') ?? ''
-  if (!ct.includes('json')) {
-    await new Promise((r) => setTimeout(r, 1400))
-    return mockAnalysis()
-  }
-  return (await res.json()) as AiFoodResult
+  const data = (await res.json()) as Partial<AiFoodResult>
+  if (!Array.isArray(data.alimentos)) throw new AiUnavailableError()
+  return data as AiFoodResult
 }
 
 /**

@@ -147,19 +147,6 @@ body::after {
   background: transparent;
 }
 
-/* html5-qrcode renders its own <video>; the frame overlay is ours */
-#apex-reader {
-  width: 100%;
-}
-#apex-reader video {
-  width: 100% !important;
-  height: auto !important;
-  display: block;
-}
-#apex-reader #qr-shaded-region {
-  display: none !important;
-}
-
 /* confetti de récord personal (solo transform/opacity) */
 @keyframes apex-confetti {
   0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 1; }
@@ -167,11 +154,6 @@ body::after {
 }
 .confetti-piece { position: absolute; left: 50%; top: 40%; width: 8px; height: 12px; border-radius: 2px; animation: apex-confetti 1.3s cubic-bezier(.15,.7,.3,1) forwards; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .confetti-piece { display: none; } }
-
-/* escáner a pantalla completa: el vídeo mantiene su proporción nativa (la región de lectura depende de ella) */
-#apex-reader video {
-  object-fit: contain;
-}
 
 /* ── Fondo aurora: tres focos de luz que derivan muy despacio (solo transform) ─────────── */
 .aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }

@@ -18,7 +18,7 @@ import { createClient } from '@supabase/supabase-js'
 const ENV: Record<string, string | undefined> = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 
 const GUEST_LIMIT = 20
-const MODEL = 'gemini-2.5-flash'
+const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
 
 const guestHits = new Map<string, { day: string; n: number }>()
 function guestAllowed(ip: string): boolean {
@@ -160,14 +160,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nTexto: """${text.trim()}"""` }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: SCHEMA },
-      }),
+    const payload = JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nTexto: """${text.trim()}"""` }] }],
+      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: SCHEMA },
     })
+    const ask = (model: string) =>
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: payload,
+      })
+    let r = await ask(ENV.GEMINI_MODEL ?? MODELS[0]!)
+    // retired or busy model: try the lighter one
+    if (r.status === 404 || r.status === 429 || r.status >= 500) r = await ask(MODELS[1]!)
     if (!r.ok) return res.status(502).json({ error: `Gemini respondió ${r.status}` })
     const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
     const out = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''

@@ -158,7 +158,7 @@ export function Nutrition() {
     <div className="px-4 pb-8 lg:px-0 lg:pb-0">
       <PageHeader
         title="Nutrición"
-        sub={`${Math.max(0, targets.kcal - t.consumed + t.burned)} kcal disponibles`}
+        sub={`${Math.max(0, targets.kcal - t.consumed + t.burned)} kcal libres`}
         right={
           <div className="flex items-center gap-1 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-1" style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
             <button className="grid h-9 w-9 place-items-center rounded-xl active:bg-white/10" aria-label="Día anterior" onClick={() => setDate(addDays(date, -1))}>

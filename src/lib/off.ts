@@ -67,41 +67,76 @@ export async function fetchBarcode(code: string): Promise<FoodProduct | null> {
   return parseProduct(json.product, clean)
 }
 
-type Tag = [type: string, value: string]
+/** Open Food Facts' current search service (the old cgi/search.pl answers 503 very often). */
+const SEARCH = 'https://search.openfoodfacts.org/search'
+const SPAIN = 'countries:"en:spain"'
 
-/** One cgi/search.pl request. `tags` are AND-ed filters (e.g. countries=spain, stores=Mercadona). */
-async function offSearch(q: string, tags: Tag[], signal?: AbortSignal): Promise<OffProduct[]> {
-  let url =
-    `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-    `&search_simple=1&action=process&json=1&page_size=24&lc=es&cc=es&sort_by=unique_scans_n&fields=${FIELDS}`
-  tags.forEach(([type, value], i) => {
-    url += `&tagtype_${i}=${type}&tag_contains_${i}=contains&tag_${i}=${encodeURIComponent(value)}`
-  })
+type Hit = Omit<OffProduct, 'brands' | 'stores'> & { brands?: string | string[]; stores?: string | string[] }
+
+/** the index returns lists such as ["xx:hacendado"] */
+const flat = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v.map((x) => x.replace(/^[a-z]{2}:/, '')).join(',') : v)
+
+async function searchIndex(q: string, signal?: AbortSignal, byPopularity = false, spanish = true): Promise<OffProduct[]> {
+  const params = new URLSearchParams({ q, page_size: '24', fields: FIELDS })
+  if (spanish) params.set('langs', 'es')
+  if (byPopularity) params.set('sort_by', '-unique_scans_n')
+  const res = await fetch(`${SEARCH}?${params}`, { signal })
+  if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
+  const json = (await res.json()) as { hits?: Hit[] }
+  if (!Array.isArray(json.hits)) throw new Error('Respuesta inesperada de Open Food Facts')
+  return json.hits.map((h) => ({ ...h, brands: flat(h.brands), stores: flat(h.stores) }))
+}
+
+/** Some index entries come without nutrients: read those few from the product database. */
+async function hydrate(list: OffProduct[], signal?: AbortSignal): Promise<OffProduct[]> {
+  let budget = 10
+  return Promise.all(
+    list.map(async (p) => {
+      if (parseProduct(p)?.per100.kcal || !p.code || budget <= 0) return p
+      budget -= 1
+      try {
+        const res = await fetch(`${BASE}/api/v2/product/${p.code}.json?lc=es&cc=es&fields=${FIELDS}`, { signal })
+        const json = (await res.json()) as { product?: OffProduct }
+        return json.product ? { ...json.product, code: p.code } : p
+      } catch {
+        return p
+      }
+    }),
+  )
+}
+
+/** last resort when the new service is down */
+async function searchLegacy(q: string, signal?: AbortSignal): Promise<OffProduct[]> {
+  const url = `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&lc=es&cc=es&fields=${FIELDS}`
   const res = await fetch(url, { signal })
   if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
   const json = (await res.json()) as { products?: OffProduct[] }
   return json.products ?? []
 }
 
-const SPAIN: Tag = ['countries', 'spain']
-
 /**
- * Text search on es.openfoodfacts.org, Spain first. With `store` set it only returns products of that chain
- * (matched on the OFF «stores» tag and on the chain's private-label brand) and works without a query too.
+ * Text search, Spain first. With `store` set it returns products of that chain (store tag or private-label brand)
+ * and works without a query too.
  */
 export async function searchFoods(query: string, signal?: AbortSignal, store?: StoreId | null): Promise<FoodProduct[]> {
-  const q = query.trim()
+  // strip the characters that have a meaning in the search syntax
+  const q = query.replace(/[:()"\[\]{}^~*?\\!+&|/]/g, ' ').replace(/\s+/g, ' ').trim()
   if (q.length < 2 && !store) return []
 
+  const def = store ? storeDef(store) : null
+  const filter = def ? `(stores:"${def.tag.toLowerCase()}" OR brands:"${def.brandTag.toLowerCase()}")` : ''
+  const compose = (...parts: string[]) => parts.filter(Boolean).join(' ')
+
   let raw: OffProduct[]
-  if (store) {
-    const def = storeDef(store)
-    const [a, b] = await Promise.all([offSearch(q, [SPAIN, ['stores', def.tag]], signal), offSearch(q, [SPAIN, ['brands', def.brandTag]], signal)])
-    raw = [...a, ...b]
-  } else {
-    raw = await offSearch(q, [SPAIN], signal)
+  try {
+    raw = await searchIndex(compose(q, filter, SPAIN), signal, !q)
+    if (raw.length === 0) raw = await searchIndex(compose(q, filter, SPAIN), signal, !q, false)
     // few Spanish hits: complete with the world-wide database
-    if (raw.length < 6) raw = [...raw, ...(await offSearch(q, [], signal))]
+    if (!store && raw.length < 6) raw = [...raw, ...(await searchIndex(q, signal))]
+    raw = await hydrate(raw, signal)
+  } catch (e) {
+    if ((e as { name?: string }).name === 'AbortError') throw e
+    raw = await searchLegacy(compose(q, def?.tag ?? ''), signal)
   }
 
   const seen = new Set<string>()
