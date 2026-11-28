@@ -18,6 +18,8 @@ import { createClient } from '@supabase/supabase-js'
 const ENV: Record<string, string | undefined> = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 
 const DAILY_LIMIT = 3
+const TIMEOUT_MS = 28_000
+export const config = { maxDuration: 60 }
 /** newest first; the next one is tried if a model is retired or overloaded (GEMINI_MODEL overrides) */
 const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
 
@@ -165,7 +167,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: payload,
-      })
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      }).catch(() => null)
+      if (!r) {
+        status = 504 // too slow: try the lighter model
+        continue
+      }
       if (!r.ok) {
         status = r.status
         if (r.status === 404 || r.status === 429 || r.status >= 500) continue // retired / busy: try the next model
@@ -176,7 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!out) return res.status(502).json({ error: 'Respuesta vacía de la IA' })
       return res.status(200).json(normalise(JSON.parse(out)))
     }
-    const why = status === 400 || status === 403 ? 'La clave de la IA no es válida.' : status === 429 ? 'La IA está saturada o sin cuota. Prueba en un rato.' : `La IA respondió con un error (${status}).`
+    const why = status === 504 ? 'La IA tarda demasiado. Inténtalo de nuevo.' : status === 400 || status === 403 ? 'La clave de la IA no es válida.' : status === 429 ? 'La IA está saturada o sin cuota. Prueba en un rato.' : `La IA respondió con un error (${status}).`
     return res.status(502).json({ error: why })
   } catch {
     return res.status(500).json({ error: 'No se pudo analizar la imagen' })

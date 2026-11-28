@@ -20,7 +20,9 @@ import { createClient } from '@supabase/supabase-js'
 const ENV: Record<string, string | undefined> = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 
 const GUEST_LIMIT = 20
-const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite']
+const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
+const TIMEOUT_MS = 25_000
+export const config = { maxDuration: 60 }
 
 const guestHits = new Map<string, { day: string; n: number }>()
 function guestAllowed(ip: string): boolean {
@@ -101,6 +103,7 @@ const PROMPT =
   'Tipos: "food" (alimento con gramos totales y kcal/proteína/carbos/grasas de ESA cantidad; si dice una unidad como "un plátano" estima su peso), ' +
   '"exercise" (ejercicio de gimnasio con sets [{kg, reps}]; "4x8 80kg" = 4 series de 8 reps a 80 kg; "10x70kg" = 10 reps a 70 kg; muscle uno de: ' + MUSCLES.join(', ') + '), ' +
   '"water" (ml), "steps" (pasos), "cardio" (cardio uno de: ' + CARDIO.join(', ') + ', y minutos). ' +
+  'Un registro por cada alimento mencionado, sin saltarte ninguno; si no da cantidad usa la ración habitual en España. En los campos que no apliquen pon 0 o cadena vacía. ' +
   'Devuelve solo lo que el usuario dijo; no inventes registros. Si no hay nada interpretable, items vacío.'
 
 const FOOD_PROMPT =
@@ -132,7 +135,24 @@ const SCHEMA = {
           cardio: { type: 'STRING' },
           minutes: { type: 'NUMBER' },
         },
-        required: ['kind'],
+        // every number is required (0 when it does not apply): otherwise the model drops grams or kcal and the record is lost
+        required: ['kind', 'name', 'grams', 'kcal', 'protein', 'carbs', 'fat', 'ml', 'steps', 'minutes'],
+      },
+    },
+  },
+  required: ['items'],
+}
+
+/** Food search needs every number: with the generic schema the model may answer with names only. */
+const FOOD_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    items: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { name: { type: 'STRING' }, grams: { type: 'NUMBER' }, kcal: { type: 'NUMBER' }, protein: { type: 'NUMBER' }, carbs: { type: 'NUMBER' }, fat: { type: 'NUMBER' } },
+        required: ['name', 'grams', 'kcal', 'protein', 'carbs', 'fat'],
       },
     },
   },
@@ -172,22 +192,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const payload = JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: `${mode === 'food' ? FOOD_PROMPT : PROMPT}\n\nTexto: """${text.trim()}"""` }] }],
-      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: SCHEMA },
+      generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: mode === 'food' ? FOOD_SCHEMA : SCHEMA },
     })
+    // null = too slow or network error
     const ask = (model: string) =>
       fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: payload,
-      })
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      }).catch(() => null)
     let r = await ask(ENV.GEMINI_MODEL ?? MODELS[0]!)
-    // retired or busy model: try the lighter one
-    if (r.status === 404 || r.status === 429 || r.status >= 500) r = await ask(MODELS[1]!)
-    if (!r.ok) return res.status(502).json({ error: `Gemini respondió ${r.status}` })
+    // retired, busy or slow model: try the other one
+    if (!r || r.status === 404 || r.status === 429 || r.status >= 500) r = await ask(MODELS[1]!)
+    if (!r) return res.status(504).json({ error: 'La IA tarda demasiado. Inténtalo de nuevo.' })
+    if (!r.ok) return res.status(502).json({ error: `La IA respondió con un error (${r.status})` })
     const json = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
     const out = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
     if (!out) return res.status(502).json({ error: 'Respuesta vacía de la IA' })
-    return res.status(200).json({ items: normalise(JSON.parse(out)) })
+    const parsed = JSON.parse(out) as { items?: RawItem[] }
+    if (mode === 'food') parsed.items = (parsed.items ?? []).map((i) => ({ ...i, kind: 'food' }))
+    return res.status(200).json({ items: normalise(parsed) })
   } catch {
     return res.status(500).json({ error: 'No se pudo interpretar el texto' })
   }
