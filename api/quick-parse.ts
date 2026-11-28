@@ -3,6 +3,8 @@
  * Body: { text: string }  → natural-language log ("200g de pollo con arroz", "press banca 4x8 80kg", "30 min de bici"…)
  * Header (optional): Authorization: Bearer <supabase access token>
  *
+ * GET → { ai: boolean } (is a key configured?). With mode 'food' the text is a food search, not a log.
+ *
  * The client always runs its own offline regex parser first; this endpoint is the optional
  * "Mejorar con IA" path for phrases the local parser could not understand.
  * - GEMINI_API_KEY lives only here. Without it the endpoint answers { simulado: true } and consumes nothing.
@@ -101,6 +103,13 @@ const PROMPT =
   '"water" (ml), "steps" (pasos), "cardio" (cardio uno de: ' + CARDIO.join(', ') + ', y minutos). ' +
   'Devuelve solo lo que el usuario dijo; no inventes registros. Si no hay nada interpretable, items vacío.'
 
+const FOOD_PROMPT =
+  'Eres un dietista-nutricionista en España. El usuario BUSCA un alimento, plato o producto en una app. ' +
+  'Devuelve de 1 a 5 opciones concretas que encajen (por ejemplo variantes, tamaños o marcas habituales), todas con kind "food". ' +
+  '"name" corto y claro; "grams" es la ración habitual en España (o la cantidad que haya escrito el usuario) y kcal, protein, carbs y fat son los de ESA ración, ' +
+  'coherentes entre sí (4·protein + 4·carbs + 9·fat ≈ kcal). Si es un producto de marca o de una cadena de restauración, usa sus valores conocidos. ' +
+  'Si no es comida, devuelve items vacío.'
+
 const SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -131,11 +140,12 @@ const SCHEMA = {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'GET') return res.status(200).json({ ai: !!ENV.GEMINI_API_KEY })
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST')
+    res.setHeader('Allow', 'GET, POST')
     return res.status(405).json({ error: 'Método no permitido' })
   }
-  const text = (req.body as { text?: string } | undefined)?.text
+  const { text, mode } = (req.body ?? {}) as { text?: string; mode?: string }
   if (!text || typeof text !== 'string' || text.trim().length === 0) return res.status(400).json({ error: 'Falta el texto' })
   if (text.length > 600) return res.status(413).json({ error: 'Texto demasiado largo' })
 
@@ -161,7 +171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const payload = JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: `${PROMPT}\n\nTexto: """${text.trim()}"""` }] }],
+      contents: [{ role: 'user', parts: [{ text: `${mode === 'food' ? FOOD_PROMPT : PROMPT}\n\nTexto: """${text.trim()}"""` }] }],
       generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: SCHEMA },
     })
     const ask = (model: string) =>

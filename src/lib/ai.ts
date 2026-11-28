@@ -83,13 +83,13 @@ export async function analyzeFoodPhoto(dataUrl: string, hint = ''): Promise<AiFo
  * Natural-language parsing with Gemini (`/api/quick-parse`) for text the local parser did not understand.
  * Returns null when the endpoint is unavailable (local dev / no key) so the caller keeps its local result.
  */
-export async function aiQuickParse(text: string): Promise<MagicItem[] | null> {
+export async function aiQuickParse(text: string, mode: 'log' | 'food' = 'log'): Promise<MagicItem[] | null> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = (await supabase?.auth.getSession())?.data.session?.access_token
   if (token) headers.Authorization = `Bearer ${token}`
   let res: Response
   try {
-    res = await fetch('/api/quick-parse', { method: 'POST', headers, body: JSON.stringify({ text }) })
+    res = await fetch('/api/quick-parse', { method: 'POST', headers, body: JSON.stringify({ text, mode }) })
   } catch {
     return null
   }
@@ -98,4 +98,16 @@ export async function aiQuickParse(text: string): Promise<MagicItem[] | null> {
   const j = (await res.json()) as { items?: MagicItem[]; simulado?: boolean }
   if (j.simulado || !Array.isArray(j.items)) return null
   return j.items
+}
+
+let status: Promise<boolean> | null = null
+/** Is the AI configured on the server? Asked once per session so the app never offers a button that cannot work. */
+export function aiAvailable(): Promise<boolean> {
+  status ??= fetch('/api/quick-parse')
+    .then(async (r) => r.ok && (r.headers.get('content-type') ?? '').includes('json') && ((await r.json()) as { ai?: boolean }).ai === true)
+    .catch(() => {
+      status = null // offline: ask again later
+      return false
+    })
+  return status
 }

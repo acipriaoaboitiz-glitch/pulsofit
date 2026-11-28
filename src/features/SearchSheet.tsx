@@ -7,7 +7,7 @@ import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
 import { savedToProduct, searchFoods } from '../lib/off'
 import { matchScore, normalize, searchGeneric, searchLibrary, searchStaples } from '../lib/foodSearch'
-import { AiLimitError, aiQuickParse } from '../lib/ai'
+import { AiLimitError, aiAvailable, aiQuickParse } from '../lib/ai'
 import { STORES, storeDef } from '../lib/supermarket'
 import type { FoodProduct, StoreId } from '../lib/types'
 import { cn, haptic } from '../lib/utils'
@@ -76,6 +76,10 @@ function SearchBody() {
   const [attempt, setAttempt] = useState(0)
   const [store, setStore] = useState<StoreId | null>(null)
   const [ai, setAi] = useState<AiState>(NO_AI)
+  const [aiOn, setAiOn] = useState(false)
+  useEffect(() => {
+    void aiAvailable().then(setAiOn)
+  }, [])
 
   const term = q.trim()
   const searching = term.length >= 2 || !!store
@@ -172,8 +176,8 @@ function SearchBody() {
   const askAi = async () => {
     setAi({ status: 'loading', items: [] })
     try {
-      const items = await aiQuickParse(term)
-      if (!items) return setAi({ status: 'done', items: [], message: 'La IA todavía no está activada.' })
+      const items = await aiQuickParse(term, 'food')
+      if (!items) return setAi({ status: 'done', items: [], message: 'La IA no ha podido responder. Inténtalo de nuevo.' })
       const foods = items.flatMap((it, i): FoodProduct[] => {
         if (it.kind !== 'food' || !(it.grams > 0)) return []
         const k = 100 / it.grams
@@ -246,9 +250,9 @@ function SearchBody() {
                   </button>
                 </div>
               )}
-              {!loading && !failed && total === 0 && <Empty icon={<Search size={24} />} text="Sin resultados. Prueba otra palabra, calcula con IA o créalo a mano." />}
+              {!loading && !failed && total === 0 && <Empty icon={<Search size={24} />} text={aiOn ? 'Sin resultados. Prueba otra palabra, calcula con IA o créalo a mano.' : 'Sin resultados. Prueba otra palabra o créalo a mano.'} />}
 
-              {term.length >= 2 && (
+              {aiOn && term.length >= 2 && (
                 <div className="space-y-2">
                   <Section title="Estimación con IA · revísala" list={ai.items} onPick={pick} />
                   {ai.message && <p className="text-center text-[12.5px] text-white/50">{ai.message}</p>}
