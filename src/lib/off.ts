@@ -1,5 +1,6 @@
 import type { FoodProduct, Macros, Per100, SavedFood, StoreId } from './types'
 import { detectStore, storeDef } from './supermarket'
+import { readQueryCache, rememberProducts, writeQueryCache } from './foodSearch'
 
 const BASE = 'https://es.openfoodfacts.org'
 const FIELDS =
@@ -64,81 +65,78 @@ export async function fetchBarcode(code: string): Promise<FoodProduct | null> {
   }
   const json = (await res.json()) as { status?: number; product?: OffProduct }
   if (json.status !== 1 || !json.product) return null
-  return parseProduct(json.product, clean)
-}
-
-/** Open Food Facts' current search service (the old cgi/search.pl answers 503 very often). */
-const SEARCH = 'https://search.openfoodfacts.org/search'
-const SPAIN = 'countries:"en:spain"'
-
-type Hit = Omit<OffProduct, 'brands' | 'stores'> & { brands?: string | string[]; stores?: string | string[] }
-
-/** the index returns lists such as ["xx:hacendado"] */
-const flat = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v.map((x) => x.replace(/^[a-z]{2}:/, '')).join(',') : v)
-
-async function searchIndex(q: string, signal?: AbortSignal, byPopularity = false, spanish = true): Promise<OffProduct[]> {
-  const params = new URLSearchParams({ q, page_size: '24', fields: FIELDS })
-  if (spanish) params.set('langs', 'es')
-  if (byPopularity) params.set('sort_by', '-unique_scans_n')
-  const res = await fetch(`${SEARCH}?${params}`, { signal })
-  if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
-  const json = (await res.json()) as { hits?: Hit[] }
-  if (!Array.isArray(json.hits)) throw new Error('Respuesta inesperada de Open Food Facts')
-  return json.hits.map((h) => ({ ...h, brands: flat(h.brands), stores: flat(h.stores) }))
-}
-
-/** Some index entries come without nutrients: read those few from the product database. */
-async function hydrate(list: OffProduct[], signal?: AbortSignal): Promise<OffProduct[]> {
-  let budget = 10
-  return Promise.all(
-    list.map(async (p) => {
-      if (parseProduct(p)?.per100.kcal || !p.code || budget <= 0) return p
-      budget -= 1
-      try {
-        const res = await fetch(`${BASE}/api/v2/product/${p.code}.json?lc=es&cc=es&fields=${FIELDS}`, { signal })
-        const json = (await res.json()) as { product?: OffProduct }
-        return json.product ? { ...json.product, code: p.code } : p
-      } catch {
-        return p
-      }
-    }),
-  )
-}
-
-/** last resort when the new service is down */
-async function searchLegacy(q: string, signal?: AbortSignal): Promise<OffProduct[]> {
-  const url = `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&lc=es&cc=es&fields=${FIELDS}`
-  const res = await fetch(url, { signal })
-  if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
-  const json = (await res.json()) as { products?: OffProduct[] }
-  return json.products ?? []
+  const found = parseProduct(json.product, clean)
+  if (found) rememberProducts([found])
+  return found
 }
 
 /**
- * Text search, Spain first. With `store` set it returns products of that chain (store tag or private-label brand)
- * and works without a query too.
+ * Text search. The classic endpoint is the one that returns nutrients, but it often answers 503, so it is retried.
+ * If it stays down, the new search service finds the products and their nutrients are read one by one.
  */
-export async function searchFoods(query: string, signal?: AbortSignal, store?: StoreId | null): Promise<FoodProduct[]> {
-  // strip the characters that have a meaning in the search syntax
-  const q = query.replace(/[:()"\[\]{}^~*?\\!+&|/]/g, ' ').replace(/\s+/g, ' ').trim()
-  if (q.length < 2 && !store) return []
+const SEARCH = 'https://search.openfoodfacts.org/search'
 
-  const def = store ? storeDef(store) : null
-  const filter = def ? `(stores:"${def.tag.toLowerCase()}" OR brands:"${def.brandTag.toLowerCase()}")` : ''
-  const compose = (...parts: string[]) => parts.filter(Boolean).join(' ')
+const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const abort = () => {
+      window.clearTimeout(t)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    const t = window.setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', abort, { once: true })
+  })
 
-  let raw: OffProduct[]
-  try {
-    raw = await searchIndex(compose(q, filter, SPAIN), signal, !q)
-    if (raw.length === 0) raw = await searchIndex(compose(q, filter, SPAIN), signal, !q, false)
-    // few Spanish hits: complete with the world-wide database
-    if (!store && raw.length < 6) raw = [...raw, ...(await searchIndex(q, signal))]
-    raw = await hydrate(raw, signal)
-  } catch (e) {
-    if ((e as { name?: string }).name === 'AbortError') throw e
-    raw = await searchLegacy(compose(q, def?.tag ?? ''), signal)
+async function classicSearch(q: string, spain: boolean, store: StoreId | null, signal?: AbortSignal): Promise<OffProduct[]> {
+  let url = `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&lc=es&cc=es&fields=${FIELDS}`
+  const tags: [string, string][] = []
+  if (spain) tags.push(['countries', 'spain'])
+  if (store) tags.push(['stores', storeDef(store).tag])
+  tags.forEach(([type, value], i) => {
+    url += `&tagtype_${i}=${type}&tag_contains_${i}=contains&tag_${i}=${encodeURIComponent(value)}`
+  })
+
+  let last: unknown
+  for (const wait of [0, 700, 2000]) {
+    if (wait) await sleep(wait, signal)
+    try {
+      const res = await fetch(url, { signal })
+      if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
+      const json = (await res.json()) as { products?: OffProduct[] }
+      return json.products ?? []
+    } catch (e) {
+      if ((e as { name?: string }).name === 'AbortError') throw e
+      last = e // 503 pages come without CORS headers and show up as a network error
+    }
   }
+  throw last
+}
 
+async function indexSearch(q: string, store: StoreId | null, signal?: AbortSignal): Promise<OffProduct[]> {
+  const def = store ? storeDef(store) : null
+  const filter = def ? `(stores:"${def.tag.toLowerCase()}" OR brands:"${def.brandTag.toLowerCase()}") ` : ''
+  const params = new URLSearchParams({ q: `${q} ${filter}countries:"en:spain"`.trim(), page_size: '10', langs: 'es' })
+  const res = await fetch(`${SEARCH}?${params}`, { signal })
+  if (!res.ok) throw new Error(`Open Food Facts respondió ${res.status}`)
+  const json = (await res.json()) as { hits?: { code?: string }[] }
+  const full = await Promise.all(
+    (json.hits ?? []).slice(0, 8).map(async (h) => {
+      if (!h.code) return null
+      try {
+        const r = await fetch(`${BASE}/api/v2/product/${h.code}.json?lc=es&cc=es&fields=${FIELDS}`, { signal })
+        const j = (await r.json()) as { product?: OffProduct }
+        return j.product ? { ...j.product, code: h.code } : null
+      } catch {
+        return null
+      }
+    }),
+  )
+  return full.filter((p) => p !== null)
+}
+
+function toProducts(raw: OffProduct[], store: StoreId | null): FoodProduct[] {
   const seen = new Set<string>()
   const out: FoodProduct[] = []
   for (const p of raw) {
@@ -146,6 +144,38 @@ export async function searchFoods(query: string, signal?: AbortSignal, store?: S
     if (!parsed || parsed.per100.kcal <= 0 || seen.has(parsed.id)) continue
     seen.add(parsed.id)
     out.push({ ...parsed, store: parsed.store ?? store ?? undefined, source: 'search' })
+  }
+  return out
+}
+
+/**
+ * Online search, Spain first. With `store` set it returns that chain's products and works without a query too.
+ * Answers are cached for a month and every product is remembered for the instant search.
+ */
+export async function searchFoods(query: string, signal?: AbortSignal, store: StoreId | null = null): Promise<FoodProduct[]> {
+  const q = query.replace(/[:()"\[\]{}^~*?\\!+&|/]/g, ' ').replace(/\s+/g, ' ').trim()
+  if (q.length < 2 && !store) return []
+
+  const key = `${store ?? ''}|${q.toLowerCase()}`
+  const cached = readQueryCache(key)
+  if (cached) return cached
+
+  let out: FoodProduct[]
+  try {
+    out = toProducts(await classicSearch(q, true, store, signal), store)
+    // nothing sold in Spain: look in the world-wide database (one extra request, the service limits how many we can make)
+    if (!store && out.length === 0) out = toProducts(await classicSearch(q, false, null, signal), null)
+  } catch (e) {
+    if ((e as { name?: string }).name === 'AbortError') throw e
+    out = toProducts(await indexSearch(q, store, signal), store)
+    if (out.length === 0) throw e
+    rememberProducts(out)
+    return out // partial answer: do not cache it
+  }
+
+  if (out.length) {
+    writeQueryCache(key, out)
+    rememberProducts(out)
   }
   return out
 }

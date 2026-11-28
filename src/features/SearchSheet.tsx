@@ -1,35 +1,41 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Plus, Search, Star, Trash2 } from 'lucide-react'
+import { Loader2, Plus, RefreshCw, Search, Sparkles, Star, Trash2, X } from 'lucide-react'
 import { Sheet } from '../components/Sheet'
 import { Empty } from '../components/bits'
 import { NutriBadge } from './ProductSheet'
 import { useStore } from '../lib/store'
 import { useUI } from '../lib/ui'
 import { savedToProduct, searchFoods } from '../lib/off'
-import { STORES, matchStaples, storeDef } from '../lib/supermarket'
+import { matchScore, normalize, searchGeneric, searchLibrary, searchStaples } from '../lib/foodSearch'
+import { AiLimitError, aiQuickParse } from '../lib/ai'
+import { STORES, storeDef } from '../lib/supermarket'
 import type { FoodProduct, StoreId } from '../lib/types'
 import { cn, haptic } from '../lib/utils'
 
 function Row({ p, onClick, onDelete }: { p: FoodProduct; onClick: () => void; onDelete?: () => void }) {
   return (
     <div className="flex items-center gap-1">
-      <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-2.5 text-left active:bg-white/[0.05]">
+      <button onClick={onClick} className="flex min-h-[64px] min-w-0 flex-1 items-center gap-3 rounded-2xl p-2.5 text-left active:bg-white/[0.05]">
         {p.image ? (
           <img src={p.image} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-xl bg-white object-contain p-0.5" />
         ) : (
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-xl">🍽️</div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-bold">{p.name}</div>
-          <div className="flex items-center gap-1.5 truncate text-[12px] text-white/45">
+          <div className="line-clamp-2 text-[14px] font-bold leading-tight">{p.name}</div>
+          <div className="flex items-center gap-1.5 truncate text-[11.5px] text-white/45">
             {p.store && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: storeDef(p.store).color }} />}
-            <span className="truncate">{p.brand ?? 'Genérico'}</span>
-            {p.store && <span className="shrink-0 font-semibold" style={{ color: storeDef(p.store).color }}>{storeDef(p.store).label}</span>}
+            <span className="truncate">{p.brand ?? 'Sin marca'}</span>
+          </div>
+          <div className="num mt-0.5 flex gap-2 text-[11px] font-bold">
+            <span className="text-emerald">P {p.per100.protein}</span>
+            <span className="text-aqua">C {p.per100.carbs}</span>
+            <span className="text-violet-300">G {p.per100.fat}</span>
           </div>
         </div>
         <NutriBadge grade={p.nutriScore} />
         <div className="num shrink-0 text-right">
-          <div className="text-[14px] font-bold">{p.per100.kcal}</div>
+          <div className="text-[15px] font-bold">{Math.round(p.per100.kcal)}</div>
           <div className="text-[10px] text-white/35">kcal/100g</div>
         </div>
       </button>
@@ -42,6 +48,23 @@ function Row({ p, onClick, onDelete }: { p: FoodProduct; onClick: () => void; on
   )
 }
 
+function Section({ title, list, onPick }: { title: string; list: FoodProduct[]; onPick: (p: FoodProduct) => void }) {
+  if (!list.length) return null
+  return (
+    <div>
+      <p className="label mb-1">{title}</p>
+      <div className="-mx-2.5">
+        {list.map((p) => (
+          <Row key={p.id} p={p} onClick={() => onPick(p)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+type AiState = { status: 'idle' | 'loading' | 'done'; items: FoodProduct[]; message?: string }
+const NO_AI: AiState = { status: 'idle', items: [] }
+
 function SearchBody() {
   const ui = useUI()
   const { state, removeSaved } = useStore()
@@ -49,14 +72,20 @@ function SearchBody() {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<FoodProduct[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [store, setStore] = useState<StoreId | null>(null)
+  const [ai, setAi] = useState<AiState>(NO_AI)
 
+  const term = q.trim()
+  const searching = term.length >= 2 || !!store
+
+  // online part (debounced; the local results below are instant)
   useEffect(() => {
-    const term = q.trim()
-    if (term.length < 2 && !store) {
-      setResults([])
-      setError('')
+    setAi(NO_AI)
+    setResults([])
+    setFailed(false)
+    if (term.length < 3 && !store) {
       setLoading(false)
       return
     }
@@ -66,22 +95,19 @@ function SearchBody() {
       searchFoods(term, ctl.signal, store)
         .then((r) => {
           setResults(r)
-          setError('')
           setLoading(false)
         })
         .catch((e: unknown) => {
           if ((e as { name?: string }).name === 'AbortError') return
-          setError('No se pudo buscar. Revisa tu conexión.')
+          setFailed(true)
           setLoading(false)
         })
-    }, 450)
+    }, 700)
     return () => {
       window.clearTimeout(t)
       ctl.abort()
     }
-  }, [q, store])
-
-  const staples = useMemo(() => (q.trim().length >= 2 || store ? matchStaples(q, store) : []), [q, store])
+  }, [term, store, attempt])
 
   const recents = useMemo(() => {
     const seen = new Set<string>()
@@ -105,14 +131,59 @@ function SearchBody() {
         servingG: f.grams,
         source: f.source === 'ai' ? 'custom' : f.source,
       })
-      if (out.length >= 12) break
+      if (out.length >= 40) break
     }
     return out
   }, [state.food])
 
+  /** instant results, without repeating the same food in two sections */
+  const found = useMemo(() => {
+    const seen = new Set<string>()
+    const fresh = (list: FoodProduct[]) =>
+      list.filter((p) => {
+        const key = `${normalize(p.name)}|${normalize(p.brand ?? '')}|${Math.round(p.per100.kcal)}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    const mine = store
+      ? []
+      : [...state.saved.map(savedToProduct), ...recents]
+          .map((p) => ({ p, s: term.length >= 2 ? matchScore(term, p.name, [`${p.name} ${p.brand ?? ''}`]) : 0 }))
+          .filter((x) => x.s > 0)
+          .sort((a, b) => b.s - a.s)
+          .slice(0, 4)
+          .map((x) => x.p)
+    return {
+      mine: fresh(mine),
+      generic: fresh(!store && term.length >= 2 ? searchGeneric(term, 10) : []),
+      staples: fresh(searchStaples(term, store)),
+      brands: fresh([...results, ...(term.length >= 2 ? searchLibrary(term, store) : [])]).slice(0, 40),
+    }
+  }, [term, store, results, recents, state.saved])
+
+  const total = found.mine.length + found.generic.length + found.staples.length + found.brands.length
+
   const pick = (product: FoodProduct) => {
     haptic(8)
     ui.open('product', { product })
+  }
+
+  const askAi = async () => {
+    setAi({ status: 'loading', items: [] })
+    try {
+      const items = await aiQuickParse(term)
+      if (!items) return setAi({ status: 'done', items: [], message: 'La IA todavía no está activada.' })
+      const foods = items.flatMap((it, i): FoodProduct[] => {
+        if (it.kind !== 'food' || !(it.grams > 0)) return []
+        const k = 100 / it.grams
+        const r = (v: number) => Math.round(v * k * 10) / 10
+        return [{ id: `ai-${i}-${it.name}`, name: it.name, brand: 'Estimación IA', per100: { kcal: Math.round(it.kcal * k), protein: r(it.protein), carbs: r(it.carbs), fat: r(it.fat) }, servingG: Math.round(it.grams), source: 'ai' }]
+      })
+      setAi({ status: 'done', items: foods, message: foods.length ? undefined : 'La IA no ha reconocido ningún alimento.' })
+    } catch (e) {
+      setAi({ status: 'done', items: [], message: e instanceof AiLimitError ? e.message : 'La IA no ha podido responder.' })
+    }
   }
 
   return (
@@ -135,14 +206,16 @@ function SearchBody() {
         <>
           <div className="relative">
             <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
-            <input
-              autoFocus
-              className="input pl-11"
-              placeholder="Ej. yogur natural, pechuga de pollo…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-            {loading && <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-emerald" />}
+            <input autoFocus className="input px-11" placeholder="Ej. yogur, pollo, pizza, lentejas…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar alimento" enterKeyHint="search" />
+            {loading ? (
+              <Loader2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-emerald" />
+            ) : (
+              q && (
+                <button onClick={() => setQ('')} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-white/40">
+                  <X size={17} />
+                </button>
+              )
+            )}
           </div>
 
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5" role="tablist" aria-label="Supermercado">
@@ -157,35 +230,41 @@ function SearchBody() {
             ))}
           </div>
 
-          {error && <p className="text-center text-[13px] text-fire">{error}</p>}
+          {searching ? (
+            <>
+              <Section title="Tuyos" list={found.mine} onPick={pick} />
+              <Section title="Alimentos y platos" list={found.generic} onPick={pick} />
+              <Section title="Básicos de súper" list={found.staples} onPick={pick} />
+              <Section title="Productos de marca" list={found.brands} onPick={pick} />
 
-          {q.trim().length >= 2 || store ? (
-            results.length > 0 || staples.length > 0 ? (
-              <div className="-mx-2.5">
-                {staples.length > 0 && <p className="label mb-1 px-2.5">Básicos de súper</p>}
-                {staples.map((p) => (
-                  <Row key={p.id} p={p} onClick={() => pick(p)} />
-                ))}
-                {staples.length > 0 && results.length > 0 && <p className="label mb-1 mt-3 px-2.5">Open Food Facts · España</p>}
-                {results.map((p) => (
-                  <Row key={p.id} p={p} onClick={() => pick(p)} />
-                ))}
-              </div>
-            ) : (
-              !loading &&
-              !error && <Empty icon={<Search size={24} />} text="Sin resultados. Prueba otro nombre o crea el alimento a mano." />
-            )
+              {loading && <p className="text-center text-[12.5px] text-white/40">Buscando más productos de marca…</p>}
+              {failed && (
+                <div className="flex items-center gap-3 rounded-2xl border border-fire/25 bg-fire/10 p-3">
+                  <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-white/70">{total ? 'Las marcas online no responden ahora; arriba tienes lo que ya tengo guardado.' : 'Open Food Facts no responde ahora mismo. Espera unos segundos y reintenta.'}</p>
+                  <button className="btn-ghost shrink-0 !px-3 !py-2 text-[13px]" onClick={() => setAttempt((n) => n + 1)}>
+                    <RefreshCw size={14} /> Reintentar
+                  </button>
+                </div>
+              )}
+              {!loading && !failed && total === 0 && <Empty icon={<Search size={24} />} text="Sin resultados. Prueba otra palabra, calcula con IA o créalo a mano." />}
+
+              {term.length >= 2 && (
+                <div className="space-y-2">
+                  <Section title="Estimación con IA · revísala" list={ai.items} onPick={pick} />
+                  {ai.message && <p className="text-center text-[12.5px] text-white/50">{ai.message}</p>}
+                  {ai.status !== 'done' && (
+                    <button className="btn w-full border border-neon/30 bg-neon/15 text-violet-200" disabled={ai.status === 'loading'} onClick={() => void askAi()}>
+                      {ai.status === 'loading' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                      <span className="truncate">Calcular «{term}» con IA</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           ) : recents.length > 0 ? (
-            <div>
-              <p className="label mb-1">Recientes</p>
-              <div className="-mx-2.5">
-                {recents.map((p) => (
-                  <Row key={p.id} p={p} onClick={() => pick(p)} />
-                ))}
-              </div>
-            </div>
+            <Section title="Recientes" list={recents.slice(0, 12)} onPick={pick} />
           ) : (
-            <Empty icon={<Search size={24} />} text="Busca en Open Food Facts España (Mercadona, Lidl, Aldi, Eroski…). Filtra por supermercado arriba." />
+            <Empty icon={<Search size={24} />} text="Escribe cualquier alimento, plato o marca: verás calorías, proteínas, hidratos y grasas." />
           )}
         </>
       ) : (
